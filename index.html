@@ -1,0 +1,1110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nucleus to Grid</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a single column, with a dark "observation window" stage, then the transport controls, chapter rail, caption, and script below it. */
+:root {
+  --bg: #f2f3f7;
+  --surface: #ffffff;
+  --fg: #151927;
+  --muted: #5b6279;
+  --line: #d8dbe6;
+  --accent: #b4235f;
+  --accent-soft: #f6dbe7;
+  --stage: #090c14;
+  --font-display: "Bricolage Grotesque", "IBM Plex Sans", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e111a; --surface: #161a26; --fg: #e6e9f2; --muted: #9aa1b8;
+    --line: #2a3043; --accent: #ff7ab8; --accent-soft: #3a1c2c; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e111a; --surface: #161a26; --fg: #e6e9f2; --muted: #9aa1b8;
+  --line: #2a3043; --accent: #ff7ab8; --accent-soft: #3a1c2c; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 48px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+header { display: flex; flex-direction: column; gap: 6px; }
+.kicker { font-family: var(--font-mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin: 0; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(30px, 5vw, 48px); line-height: 1.05; letter-spacing: -.02em; margin: 0; text-wrap: balance; }
+.dek { margin: 0; color: var(--muted); max-width: 62ch; }
+
+.stage { margin: 0; background: var(--stage); border-radius: 12px; overflow: hidden; position: relative; aspect-ratio: 16 / 9; max-width: 100%; }
+.stage canvas { display: block; width: 100%; height: 100%; }
+
+.controls { display: flex; align-items: center; gap: 12px; }
+.btn {
+  appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--fg);
+  width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; flex: none;
+}
+.btn:hover { border-color: var(--accent); }
+.btn:focus-visible, .chap:focus-visible, input[type="range"]:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn svg { width: 18px; height: 18px; fill: currentColor; }
+#scrub { flex: 1; min-width: 0; accent-color: var(--accent); height: 28px; }
+.clock { font-family: var(--font-mono); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.chapters { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.chap {
+  width: 100%; text-align: left; appearance: none; cursor: pointer; font: inherit; color: var(--muted);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 2px; position: relative; overflow: hidden; height: 100%;
+}
+.chap .n { font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; }
+.chap .t { font-size: 13px; line-height: 1.25; font-weight: 500; }
+.chap .bar { position: absolute; left: 0; bottom: 0; height: 3px; width: 0; background: var(--accent); }
+.chap[aria-current="step"] { color: var(--fg); border-color: var(--accent); background: var(--accent-soft); }
+
+.caption { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px; min-height: 172px; }
+.eyebrow { margin: 0; font-family: var(--font-mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+.cap-text { margin: 0; font-size: 19px; line-height: 1.5; max-width: 66ch; }
+.fact { margin: 0; font-family: var(--font-mono); font-size: 13.5px; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 8px; }
+
+details.script { border-top: 1px solid var(--line); padding-top: 12px; }
+summary { cursor: pointer; font-weight: 600; }
+.script-body { display: flex; flex-direction: column; gap: 16px; margin-top: 12px; }
+.script-body h3 { font-family: var(--font-display); font-size: 18px; margin: 0 0 4px; }
+.script-body ol { margin: 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.script-body li { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 8px; max-width: 78ch; }
+.script-body .ts { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); padding-top: 2px; font-variant-numeric: tabular-nums; }
+.note { margin: 0; font-size: 13px; color: var(--muted); }
+
+@media (max-width: 760px) {
+  .chapters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cap-text { font-size: 17px; }
+}
+@media (max-width: 440px) {
+  .chapters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <p class="kicker">Deuterium + tritium → helium + neutron → electricity</p>
+    <h1>Nucleus to Grid</h1>
+    <p class="dek">How nuclear fusion works, step by step: two nuclei overcome their repulsion, two ways of confining the fuel, and the steam plant that turns the released energy into electricity.</p>
+  </header>
+
+  <figure class="stage">
+    <canvas id="cv" role="img" aria-label="Fusion animation"></canvas>
+  </figure>
+
+  <div class="controls">
+    <button class="btn" id="play" type="button" aria-label="Play">
+      <svg id="ico-play" viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>
+      <svg id="ico-pause" viewBox="0 0 24 24" hidden><path d="M6 4h4.5v16H6zM13.5 4H18v16h-4.5z"/></svg>
+    </button>
+    <button class="btn" id="replay" type="button" aria-label="Restart from the beginning">
+      <svg viewBox="0 0 24 24"><path d="M12 5a7 7 0 1 1-7 7h2.2A4.8 4.8 0 1 0 12 7.2V10L7.5 6 12 2z"/></svg>
+    </button>
+    <input type="range" id="scrub" min="0" max="130" step="0.01" value="0" aria-label="Animation position">
+    <span class="clock" id="clock">0:00 / 2:10</span>
+  </div>
+
+  <ol class="chapters" id="chapters"></ol>
+
+  <section class="caption" aria-live="polite">
+    <p class="eyebrow" id="cap-eyebrow"></p>
+    <p class="cap-text" id="cap-text"></p>
+    <p class="fact" id="cap-fact"></p>
+  </section>
+
+  <details class="script" id="script-d">
+    <summary>Narration script (for voice-over)</summary>
+    <div class="script-body" id="script"></div>
+  </details>
+  <p class="note">Space plays and pauses. The left and right arrow keys jump between chapters. Diagrams are not to scale, except where a scale bar is shown.</p>
+</div>
+
+<script>
+(() => {
+'use strict';
+const W = 1600, H = 900;
+const SANS = '"IBM Plex Sans", system-ui, sans-serif';
+const MONO = '"IBM Plex Mono", ui-monospace, monospace';
+
+// Stage palette (the stage is always dark, like an observation window)
+const C = {
+  bg: [9, 12, 20], p: [229, 72, 77], n: [150, 160, 178], he: [242, 177, 52],
+  laser: [74, 222, 128], energy: [255, 240, 190], plasma: [255, 111, 181],
+  field: [125, 211, 252], copper: [205, 127, 70], blanket: [255, 138, 61],
+  hot: [255, 90, 79], cold: [74, 163, 255], steam: [226, 234, 244],
+  ink: [226, 232, 240], dim: [128, 140, 162], metal: [92, 104, 126], tri: [140, 220, 255],
+  coil: [80, 150, 255], coilDim: [52, 66, 96], fieldO: [255, 160, 70]
+};
+const rgba = (c, a = 1) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
+const mix = (a, b, u) => [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const seg = (t, a, b) => clamp((t - a) / (b - a));
+const ease = x => x < .5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+const easeOut = x => 1 - Math.pow(1 - x, 3);
+const lerp = (a, b, u) => a + (b - a) * u;
+const rnd = i => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+const TAU = Math.PI * 2;
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let k = 1, FS = 1;
+function resize() {
+  const r = cv.getBoundingClientRect();
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = Math.max(1, Math.round(r.width * dpr));
+  cv.height = Math.max(1, Math.round(r.width * 9 / 16 * dpr));
+  k = cv.width / W;
+  FS = Math.min(1.8, Math.max(1, 720 / Math.max(1, r.width)));
+  render();
+}
+
+// ---------- drawing helpers ----------
+function text(s, x, y, o = {}) {
+  const size = (o.size || 26) * (o.fixed ? 1 : FS);
+  ctx.font = `${o.weight || 500} ${size}px ${o.mono ? MONO : SANS}`;
+  ctx.fillStyle = rgba(o.c || C.ink, o.a ?? 1);
+  ctx.textAlign = o.align || 'left';
+  ctx.textBaseline = o.base || 'middle';
+  ctx.fillText(s, x, y);
+}
+function glow(x, y, R, c, a) {
+  if (a <= 0 || R <= 0) return;
+  const g = ctx.createRadialGradient(x, y, 0, x, y, R);
+  g.addColorStop(0, rgba(c, a)); g.addColorStop(1, rgba(c, 0));
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, R, 0, TAU); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+}
+function ball(x, y, r, c, a = 1) {
+  const g = ctx.createRadialGradient(x - r * .35, y - r * .4, r * .1, x, y, r);
+  g.addColorStop(0, rgba(mix(c, [255, 255, 255], .5), a));
+  g.addColorStop(.55, rgba(c, a));
+  g.addColorStop(1, rgba(mix(c, [0, 0, 0], .5), a));
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+}
+const LAY = {
+  1: [[0, 0]],
+  2: [[-.5, 0], [.5, 0]],
+  3: [[-.5, .3], [.5, .3], [0, -.58]],
+  4: [[-.5, -.45], [.55, -.4], [-.45, .55], [.5, .5]],
+  6: [[-1, 0], [-.5, -.87], [.5, -.87], [1, 0], [.5, .87], [-.5, .87]]
+};
+function nucleus(x, y, types, r, a = 1) {
+  const L = LAY[types.length];
+  types.forEach((t, i) => {
+    const px = x + L[i][0] * r * 1.1, py = y + L[i][1] * r * 1.1;
+    ball(px, py, r, t === 'p' ? C.p : C.n, a);
+    if (t === 'p' && r >= 14) text('+', px, py + 1, { size: r * 1.05, fixed: true, weight: 600, align: 'center', a: .9 * a });
+  });
+}
+function line(x1, y1, x2, y2, c, w = 2, a = 1, dash) {
+  ctx.strokeStyle = rgba(c, a); ctx.lineWidth = w; ctx.setLineDash(dash || []);
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.setLineDash([]);
+}
+function pline(pts, c, w = 2, a = 1, dash) {
+  ctx.strokeStyle = rgba(c, a); ctx.lineWidth = w; ctx.setLineDash(dash || []);
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke();
+  ctx.setLineDash([]);
+}
+function arrow(x1, y1, x2, y2, c, w = 3, a = 1, head = 14) {
+  if (a <= 0) return;
+  line(x1, y1, x2, y2, c, w, a);
+  const ang = Math.atan2(y2 - y1, x2 - x1);
+  ctx.fillStyle = rgba(c, a); ctx.beginPath();
+  ctx.moveTo(x2 + Math.cos(ang) * 2, y2 + Math.sin(ang) * 2);
+  ctx.lineTo(x2 - Math.cos(ang - .45) * head, y2 - Math.sin(ang - .45) * head);
+  ctx.lineTo(x2 - Math.cos(ang + .45) * head, y2 - Math.sin(ang + .45) * head);
+  ctx.closePath(); ctx.fill();
+}
+function flowDots(pts, phase, spacing, c, r, a) {
+  if (a <= 0) return;
+  const segs = []; let total = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const l = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    segs.push(l); total += l;
+  }
+  ctx.fillStyle = rgba(c, a);
+  for (let s = ((phase % spacing) + spacing) % spacing; s < total; s += spacing) {
+    let d = s, i = 0;
+    while (i < segs.length - 1 && d > segs[i]) { d -= segs[i]; i++; }
+    const u = segs[i] ? d / segs[i] : 0;
+    const x = lerp(pts[i][0], pts[i + 1][0], u), y = lerp(pts[i][1], pts[i + 1][1], u);
+    ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+  }
+}
+function scaleBar(len, label) {
+  const x = 60, y = 850;
+  line(x, y, x + len, y, C.dim, 2);
+  line(x, y - 8, x, y + 8, C.dim, 2); line(x + len, y - 8, x + len, y + 8, C.dim, 2);
+  text(label, x, y - 24, { size: 16, mono: true, c: C.dim });
+}
+function panel(x, y, w, h, a = 1) {
+  ctx.fillStyle = rgba([255, 255, 255], .04 * a); ctx.strokeStyle = rgba(C.dim, .35 * a); ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.roundRect(x, y, w, h, 14); ctx.fill(); ctx.stroke();
+}
+function sideLabel(title, sub, x, y, a, c = C.ink) {
+  if (a <= 0) return;
+  text(title, x, y, { size: 26, weight: 600, a, c });
+  if (sub) text(sub, x, y + 34 * FS, { size: 19, c: C.dim, a });
+}
+
+// ---------- energy-vs-distance inset (chapters 1-2) ----------
+function barrier(o) {
+  const bx = 1060, by = 540, bw = 480, bh = 300;
+  ctx.save(); ctx.globalAlpha = o.a;
+  panel(bx, by, bw, bh);
+  text('ENERGY VS. DISTANCE', bx + 20, by + 26, { size: 14, mono: true, c: C.dim });
+  const X = p => bx + 40 + p * (bw - 70);
+  const y0 = by + 172, Y = V => y0 - Math.min(V, 1.15) * 105;
+  line(X(0), y0, X(1), y0, C.dim, 1, .5, [5, 6]);
+  const pts = [[X(.02), Y(-.9)], [X(.18), Y(-.9)], [X(.18), Y(1)]];
+  for (let p = .18; p <= 1.001; p += .01) pts.push([X(p), Y(.18 / p)]);
+  pline(pts, C.ink, 2.5, .9);
+  text('Coulomb barrier', X(.22), Y(1) - 4, { size: 15, c: C.p, weight: 600 });
+  text('strong-force well', X(.1), Y(-.9) + 20, { size: 14, c: C.dim, align: 'center' });
+  if (FS < 1.3) text('distance between nuclei →', bx + bw - 20, by + bh - 18, { size: 13, c: C.dim, align: 'right' });
+  const turn = .18 / o.E;
+  line(X(turn), Y(o.E), X(1), Y(o.E), C.he, 1.5, .8, [6, 5]);
+  text('fuel energy', X(1), Y(o.E) - 14, { size: 13, c: C.he, align: 'right' });
+  if (o.tunnel > 0) {
+    line(X(.18), Y(o.E), X(turn), Y(o.E), C.energy, 2.5, o.tunnel, [3, 4]);
+    text('tunnelling', X(.18) - 8, Y(o.E) - 16, { size: 14, c: C.energy, align: 'right', a: o.tunnel, weight: 600 });
+  }
+  const by_ = o.px < .18 ? Y(lerp(o.E, -.9, o.fused || 0)) : Y(o.E);
+  glow(X(o.px), by_, 26, C.he, .6);
+  ball(X(o.px), by_, 8, C.he);
+  ctx.restore();
+}
+
+// ---------- chapters ----------
+const CH = [];
+
+// 1. Coulomb barrier
+CH.push({
+  title: 'The Coulomb barrier', short: 'Repulsion', dur: 7, key: 3.1,
+  fact: 'Electric repulsion grows as 1/r². The strong force that binds nuclei acts only within about 1 femtometre (10⁻¹⁵ m).',
+  beats: [
+    [0, 'Two hydrogen isotopes: deuterium (1 proton, 1 neutron) and tritium (1 proton, 2 neutrons).'],
+    [2, 'Both nuclei are positively charged. The closer they get, the harder they push each other away.'],
+    [4.2, 'At ordinary energies they bounce apart before the strong nuclear force can pull them together. This wall of repulsion is the Coulomb barrier.']
+  ],
+  draw(lt) {
+    const cx = 700, cy = 360;
+    let d;
+    if (lt < 3) { const u = lt / 3; d = 300 + 700 * Math.pow(1 - u, 2); }
+    else if (lt < 3.3) d = 300;
+    else if (lt < 4.8) { const u = seg(lt, 3.3, 4.8); d = 300 + 400 * u * u; }
+    else d = 700 + 60 * (lt - 4.8);
+    const xD = cx - d / 2, xT = cx + d / 2, rep = Math.pow(300 / d, 2);
+    glow(cx, cy, 200, C.p, .35 * rep);
+    nucleus(xD, cy, ['p', 'n'], 28);
+    nucleus(xT, cy, ['p', 'n', 'n'], 28);
+    const L = 20 + 110 * rep, aa = .35 + .65 * rep;
+    arrow(xD - 60, cy, xD - 60 - L, cy, C.p, 4, aa);
+    arrow(xT + 70, cy, xT + 70 + L, cy, C.p, 4, aa);
+    if (rep > .25) {
+      text('push', xD - 60 - L / 2, cy - 26, { size: 18, c: C.p, align: 'center', a: seg(rep, .25, .6) });
+      text('push', xT + 70 + L / 2, cy - 26, { size: 18, c: C.p, align: 'center', a: seg(rep, .25, .6) });
+    }
+    text('Deuterium', xD, cy + 92, { size: 26, weight: 600, align: 'center' });
+    text('1 p + 1 n', xD, cy + 92 + 32 * FS, { size: 19, c: C.dim, align: 'center' });
+    text('Tritium', xT, cy + 92, { size: 26, weight: 600, align: 'center' });
+    text('1 p + 2 n', xT, cy + 92 + 32 * FS, { size: 19, c: C.dim, align: 'center' });
+    text('Both positive: like charges repel', cx, 150, { size: 30, weight: 600, align: 'center', a: seg(lt, 1.5, 2) * (1 - seg(lt, 3.8, 4.2)) });
+    text('They bounce apart before they can fuse', cx, 150, { size: 30, weight: 600, align: 'center', c: C.p, a: seg(lt, 4.2, 4.7) });
+    barrier({ a: 1, E: .45, px: .4 + (d - 300) / 700 * .55, tunnel: 0 });
+    scaleBar(100, '≈ 3 fm');
+  }
+});
+
+// 2. Fusion: three pairs, each hotter and faster; the third one fuses
+const PAIRS = [
+  { ts: 0, tc: 1.4, dmin: 230, ang: 50 * Math.PI / 180, E: .44 },
+  { ts: 3, tc: 4.0, dmin: 150, ang: 35 * Math.PI / 180, E: .62, flip: -1 },
+  { ts: 5.5, tc: 6.3, dmin: 52, ang: 0, E: .8 }
+];
+const FUSE_T = PAIRS[2].tc;
+CH.push({
+  title: 'Fusion', short: 'Fusion', dur: 14, key: 7.6,
+  fact: 'D + T → ⁴He (3.5 MeV) + n (14.1 MeV). Total: 17.6 MeV per reaction.',
+  beats: [
+    [0, 'At 50 million °C the nuclei are too slow. They stop well apart, repel each other and fly off.'],
+    [3, 'Hotter fuel means faster nuclei. At 100 million °C they get closer, but they still bounce apart.'],
+    [5.5, "At about 150 million °C, ten times hotter than the Sun's core, they come close enough for quantum tunnelling to carry them through the barrier, and they fuse."],
+    [7.5, 'They become a helium-4 nucleus and a free neutron, flying apart at high speed.'],
+    [9, 'The products weigh slightly less than the fuel. The missing 0.019 atomic mass units of mass become 17.6 MeV of energy (E = mc²).']
+  ],
+  draw(lt) {
+    const cx = 800, cy = 360, start = 860;
+    // temperature rises in steps between pairs
+    const temp = 10 + 40 * ease(seg(lt, 0, .6)) + 50 * ease(seg(lt, 2.4, 3)) + 50 * ease(seg(lt, 4.9, 5.5));
+    const h = (temp - 10) / 140;
+    const tx = 110, top = 170, bot = 690, fy = T => bot - (T / 160) * (bot - top);
+    const ta = 1 - seg(lt, 8.5, 9.5);
+    ctx.save(); ctx.globalAlpha = ta;
+    ctx.strokeStyle = rgba(C.dim, .8); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(tx - 12, top - 10, 24, bot - top + 20, 12); ctx.stroke();
+    ctx.fillStyle = rgba(mix(C.cold, C.hot, h)); ctx.beginPath(); ctx.roundRect(tx - 7, fy(temp), 14, bot - fy(temp) + 8, 7); ctx.fill();
+    ball(tx, bot + 26, 24, mix(C.cold, C.hot, h));
+    line(tx + 16, fy(15), tx + 36, fy(15), C.dim, 2); text("Sun's core, 15 M", tx + 44, fy(15), { size: 15, c: C.dim });
+    [50, 100].forEach(T => { line(tx + 16, fy(T), tx + 30, fy(T), C.dim, 2); text(T + ' M', tx + 44, fy(T), { size: 15, c: C.dim }); });
+    line(tx + 16, fy(150), tx + 36, fy(150), C.he, 2); text('150 M', tx + 44, fy(150), { size: 15, c: C.he });
+    text(`${Math.round(temp)} million °C`, 60, 125, { size: 24, weight: 600, c: mix(C.ink, C.hot, h) });
+    ctx.restore();
+
+    // energy graph follows the pair currently on screen
+    let cur = 0; PAIRS.forEach((p, i) => { if (lt >= p.ts) cur = i; });
+    const pr = PAIRS[cur], v = (start - pr.dmin) / (pr.tc - pr.ts);
+    const ba = 1 - seg(lt, 8.4, 9);
+    // separation between the two nuclei of the current pair
+    let sep;
+    if (lt < pr.tc) sep = 2 * (pr.dmin + v * (pr.tc - lt));
+    else sep = 2 * Math.hypot(pr.dmin + v * (lt - pr.tc) * Math.cos(pr.ang), v * (lt - pr.tc) * Math.sin(pr.ang));
+    const E = pr.E, pt = .18 / E;
+    let px;
+    if (cur < 2) px = Math.min(.98, pt + (sep - 2 * pr.dmin) / (2 * start - 2 * pr.dmin) * (.95 - pt));
+    else px = lt >= FUSE_T ? .1 : (sep >= 300 ? pt + (sep - 300) / (2 * start - 300) * (.95 - pt) : lerp(.1, pt, (sep - 104) / 196));
+    if (ba > 0) barrier({ a: ba, E, px, tunnel: cur === 2 ? seg(lt, 5.9, 6.2) : 0, fused: seg(lt, FUSE_T, FUSE_T + .5) });
+
+    // the pairs: straight in horizontally, sharp turn, straight out on opposite diagonals
+    PAIRS.forEach((p, i) => {
+      if (lt < p.ts) return;
+      const vv = (start - p.dmin) / (p.tc - p.ts);
+      if (i === 2 && lt >= p.tc) return;
+      let xD, yD, xT, yT;
+      if (lt < p.tc) {
+        const hs = p.dmin + vv * (p.tc - lt);
+        xD = cx - hs; xT = cx + hs; yD = yT = cy;
+      } else {
+        const s = vv * (lt - p.tc);
+        if (s > 1400) return;
+        const fl = p.flip || 1;
+        xD = cx - p.dmin - s * Math.cos(p.ang); yD = cy - fl * s * Math.sin(p.ang);
+        xT = cx + p.dmin + s * Math.cos(p.ang); yT = cy + fl * s * Math.sin(p.ang);
+      }
+      const near = 1 - clamp(Math.abs(lt - p.tc) / .35);
+      if (i < 2) glow(cx, cy, 2 * p.dmin + 60, C.p, .55 * near);
+      nucleus(xD, yD, ['p', 'n'], 28);
+      nucleus(xT, yT, ['p', 'n', 'n'], 28);
+      if (i < 2) text('repelled', cx, cy - 70, { size: 22, weight: 600, align: 'center', c: C.p, a: seg(lt, p.tc, p.tc + .15) * (1 - seg(lt, p.tc + .8, p.tc + 1.1)) });
+    });
+    text('Deuterium →', 60 + 160, cy - 60, { size: 20, c: C.dim, a: seg(lt, 0, .3) * (1 - seg(lt, 1, 1.3)) });
+    text('← Tritium', W - 60, cy - 60, { size: 20, c: C.dim, align: 'right', a: seg(lt, 0, .3) * (1 - seg(lt, 1, 1.3)) });
+
+    // fusion products leave horizontally at constant speed (neutron 4x faster)
+    if (lt >= FUSE_T) {
+      const s = lt - FUSE_T, f = seg(lt, FUSE_T, FUSE_T + 1.2);
+      const hx = cx - 150 * s, nx = cx + 600 * s;
+      const tg = ctx.createLinearGradient(cx, 0, nx, 0);
+      tg.addColorStop(0, rgba(C.n, 0)); tg.addColorStop(1, rgba(C.n, .7));
+      ctx.strokeStyle = tg; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(Math.max(cx, nx - 500), cy); ctx.lineTo(nx, cy); ctx.stroke();
+      nucleus(hx, cy, ['p', 'n', 'n', 'p'], 28);
+      ball(nx, cy, 28, C.n);
+      glow(cx, cy, 80 + 520 * f, C.energy, (1 - f) * .95);
+      const la = seg(lt, FUSE_T + .3, FUSE_T + .9), lnx = Math.min(nx, 1430);
+      text('Helium-4', hx, cy + 92, { size: 26, weight: 600, align: 'center', a: la });
+      text('3.5 MeV', hx, cy + 92 + 32 * FS, { size: 20, mono: true, c: C.he, align: 'center', a: la });
+      text(nx > 1430 ? 'Neutron →' : 'Neutron', lnx, cy + 92, { size: 26, weight: 600, align: 'center', a: la });
+      text('14.1 MeV', lnx, cy + 92 + 32 * FS, { size: 20, mono: true, c: C.he, align: 'center', a: la });
+    }
+
+    // mass ledger
+    const ma = seg(lt, 9, 9.8);
+    if (ma > 0) {
+      const bx = 1000, by = 540, bw = 540, bh = 300;
+      ctx.save(); ctx.globalAlpha = ma;
+      panel(bx, by, bw, bh);
+      text('MASS BEFORE AND AFTER (u)', bx + 20, by + 26, { size: 14, mono: true, c: C.dim });
+      const x0 = bx + 130, BW = 330, g = ease(seg(lt, 9.5, 11));
+      const rows = [['D + T', 5.0302, C.p], ['⁴He + n', 5.0113, C.he]];
+      rows.forEach(([lab, m, c], i) => {
+        const y = by + 92 + i * 78, w = (m - 5) / .035 * BW * g;
+        text(lab, bx + 20, y, { size: 20, weight: 600 });
+        ctx.fillStyle = rgba(c, .85); ctx.fillRect(x0, y - 16, w, 32);
+        text(m.toFixed(4), x0 + w + 10, y, { size: 17, mono: true, a: g });
+      });
+      const ga = seg(lt, 11, 11.8);
+      if (ga > 0) {
+        const x1 = x0 + (.0113 / .035) * BW, x2 = x0 + (.0302 / .035) * BW, y = by + 170;
+        ctx.setLineDash([5, 4]); ctx.strokeStyle = rgba(C.energy, ga); ctx.lineWidth = 2;
+        ctx.strokeRect(x1, y - 16, x2 - x1, 32); ctx.setLineDash([]);
+        glow((x1 + x2) / 2, y, 110, C.energy, .35 * ga);
+        text('0.0189 u missing  →  17.6 MeV', bx + 20, by + 238, { size: 20, weight: 600, c: C.energy, a: ga });
+      }
+      text('axis starts at 5.000 u', bx + bw - 20, by + bh - 18, { size: 13, c: C.dim, align: 'right' });
+      ctx.restore();
+    }
+    scaleBar(100, '≈ 3 fm');
+  }
+});
+
+// 3. Magnetic confinement (tokamak)
+function tokamak(lt, o = {}) {
+  const R = 400, cx = o.cx ?? 800, cy = o.cy ?? 470;
+  const P = (phi, th, r) => {
+    const rr = R + r * Math.cos(th);
+    return [cx + rr * Math.cos(phi), cy + rr * Math.sin(phi) * .32 - r * Math.sin(th) * .95];
+  };
+  const coilLight = o.coils ?? (i => ease(seg(lt, .5 + i * .15, 1.5 + i * .15)));
+  const pf = o.pf ?? ease(seg(lt, 4, 6));
+  const N = 12, coils = [];
+  for (let i = 0; i < N; i++) coils.push({ i, phi: i * TAU / N + .1 });
+  const drawCoil = c => {
+    const li = coilLight(c.i), pts = [];
+    for (let s = 0; s <= 48; s++) pts.push(P(c.phi, s / 48 * TAU, 175));
+    pline(pts, mix(C.coilDim, C.coil, li), 7, .9);
+    pline(pts, mix(C.coilDim, [200, 225, 255], li), 1.5, .55);
+  };
+  coils.filter(c => Math.sin(c.phi) < 0).forEach(drawCoil);
+  // poloidal field coils
+  [-200, 200].forEach(dy => {
+    ctx.strokeStyle = rgba(mix(C.coilDim, C.coil, pf), .9); ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.ellipse(cx, cy + dy, R + 20, (R + 20) * .32, 0, 0, TAU); ctx.stroke();
+  });
+  // vessel wireframe
+  ctx.strokeStyle = rgba(C.metal, .7); ctx.lineWidth = 2;
+  [[0, R + 130], [0, R - 130], [-123, R], [123, R]].forEach(([dy, rx]) => {
+    ctx.beginPath(); ctx.ellipse(cx, cy + dy, rx, rx * .32, 0, 0, TAU); ctx.stroke();
+  });
+  // plasma
+  const pa = o.plasma ?? seg(lt, 9.5, 11.5);
+  if (pa > 0) {
+    for (let s = 0; s < 28; s++) { const p = P(s / 28 * TAU, 0, 0); glow(p[0], p[1], 95, C.plasma, .1 * pa); }
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 240; i++) {
+      const phi = rnd(i) * TAU + (.35 + .25 * rnd(i + 7)) * lt;
+      const th = rnd(i + 3) * TAU + 2.5 * phi, r = 15 + 75 * Math.pow(rnd(i + 11), .7);
+      const p = P(phi, th, r), front = (Math.sin(phi) + 1) / 2;
+      ctx.fillStyle = rgba(mix(C.plasma, C.energy, rnd(i + 5) * .5), pa * (.35 + .55 * front));
+      ctx.beginPath(); ctx.arc(p[0], p[1], 2 + 2.2 * front, 0, TAU); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  // field lines
+  const lf = o.field ?? seg(lt, 8, 11);
+  if (lf > 0) {
+    const fa = o.fieldA ?? (lt > 12 ? lerp(.85, .45, seg(lt, 12, 13)) : .85);
+    [0, 2.09, 4.19].forEach(c0 => {
+      const pts = [];
+      for (let s = 0; s <= 300 * lf; s++) { const phi = s / 300 * TAU; pts.push(P(phi, c0 + 2.5 * phi, 105)); }
+      if (pts.length > 1) pline(pts, C.fieldO, 2.2, fa);
+    });
+  }
+  coils.filter(c => Math.sin(c.phi) >= 0).forEach(drawCoil);
+  return P;
+}
+// fusion events inside the tokamak plasma: a flash, then a neutron flying straight out
+const TOK_EVENTS = [];
+for (let j = 0, t0 = 12; t0 < 21.6; j++) {
+  TOK_EVENTS.push({ t: t0, phi: rnd(j + 200) * TAU, th: rnd(j + 300) * TAU, r: 70 * rnd(j + 400), dir: rnd(j + 500) * TAU });
+  t0 += .22 + .2 * rnd(j + 600);
+}
+CH.push({
+  title: 'Magnetic confinement', short: 'Magnets', dur: 22, key: 14.5,
+  fact: 'Example: ITER, under construction in France. Plasma volume: 840 m³.',
+  beats: [
+    [0, 'No material wall can touch fuel this hot. A tokamak holds the fuel in a ring-shaped vacuum chamber, using magnetic fields instead of walls.'],
+    [4, 'Toroidal field coils wrap around the ring. Poloidal coils above and below it shape and steer the fuel.'],
+    [8, 'Together the fields twist into helical lines. The charged particles of the hot fuel, now a plasma, spiral along them and stay clear of the wall.'],
+    [12, 'Each flash is one fusion reaction. Its neutron has no electric charge, so it ignores the magnetic field and flies straight out of the plasma.'],
+    [17, 'Held like this for seconds or minutes, the fuel keeps fusing. The 3.5 MeV helium nuclei stay trapped, and help keep the plasma hot.']
+  ],
+  draw(lt) {
+    const P = tokamak(lt);
+    const a1 = seg(lt, 1.5, 2.5), a2 = seg(lt, 4.5, 5.5), a3 = seg(lt, 8.5, 9.5), a4 = seg(lt, 10.5, 11.5);
+    const c = P(1.27, 0, 175);
+    if (a1) { line(c[0] + 10, c[1] + 10, 1150, 770, C.dim, 1.5, a1); text('Toroidal field coils', 1160, 770, { size: 24, weight: 600, a: a1, c: C.coil }); }
+    if (a2) { line(1220, 270, 1250, 215, C.dim, 1.5, a2); text('Poloidal field coils', 1258, 205, { size: 24, weight: 600, a: a2, c: C.coil }); }
+    const f = P(3.5, Math.PI / 2 + 2.5 * 3.5, 105);
+    if (a3) { line(f[0], f[1], 190, 200, C.dim, 1.5, a3); text('Twisted magnetic field', 60, 180, { size: 24, weight: 600, a: a3, c: C.fieldO }); }
+    if (a4) {
+      const q = P(2.4, -Math.PI / 2, 60);
+      line(q[0], q[1], 250, 690, C.dim, 1.5, a4);
+      text('Plasma ≈ 150 M °C', 60, 715, { size: 24, weight: 600, a: a4, c: C.plasma });
+      text('never touches the wall', 60, 715 + 30 * FS, { size: 18, a: a4, c: C.dim });
+    }
+    // fusion flashes and escaping neutrons
+    TOK_EVENTS.forEach((e, j) => {
+      const age = lt - e.t;
+      if (age < 0 || age > 2) return;
+      const p = P(e.phi, e.th, e.r);
+      if (age < .4) { glow(p[0], p[1], 30 + 60 * age, C.energy, 1 - age / .4); glow(p[0], p[1], 14, [255, 255, 255], 1 - age / .4); }
+      const s = 900 * age, nx = p[0] + Math.cos(e.dir) * s, ny = p[1] + Math.sin(e.dir) * s;
+      const tl = Math.min(s, 60);
+      line(nx - Math.cos(e.dir) * tl, ny - Math.sin(e.dir) * tl, nx, ny, C.n, 4, .7);
+      glow(nx, ny, 18, C.n, .5);
+      ball(nx, ny, 8, C.n);
+      if (j === 0) text('fusion', p[0], p[1] - 40, { size: 22, weight: 600, align: 'center', c: C.energy, a: 1 - seg(age, 1, 1.5) });
+    });
+    text('Neutrons escape: no charge, so the magnets cannot hold them', 800, 64, { size: 24, weight: 600, align: 'center', c: C.ink, a: seg(lt, 13, 13.8) * (1 - seg(lt, 21, 21.6)) });
+    scaleBar(200, '≈ 3 m');
+  }
+});
+
+// 4. Laser inertial confinement, direct drive, in a spherical chamber
+function sphere(cx, cy, R, a = 1) {
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+  g.addColorStop(0, rgba(C.metal, .06 * a)); g.addColorStop(.75, rgba(C.metal, .2 * a));
+  g.addColorStop(.95, rgba([140, 155, 182], .6 * a)); g.addColorStop(1, rgba([170, 182, 204], .85 * a));
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.fill();
+  ctx.strokeStyle = rgba(C.metal, .35 * a); ctx.lineWidth = 1.5;
+  [-.9, -.5, 0, .5, .9].forEach(lat => {
+    const rx = R * Math.cos(lat);
+    ctx.beginPath(); ctx.ellipse(cx, cy + R * Math.sin(lat), rx, rx * .22, 0, 0, TAU); ctx.stroke();
+  });
+  [.35, .75].forEach(lon => { ctx.beginPath(); ctx.ellipse(cx, cy, R * lon, R, 0, 0, TAU); ctx.stroke(); });
+  const hg = ctx.createRadialGradient(cx - R * .45, cy - R * .5, 0, cx - R * .45, cy - R * .5, R * .45);
+  hg.addColorStop(0, rgba([255, 255, 255], .14 * a)); hg.addColorStop(1, rgba([255, 255, 255], 0));
+  ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(cx, cy, R, 0, TAU); ctx.fill();
+}
+function lens(x, y, ang, s = 1) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+  ctx.fillStyle = rgba([92, 104, 126]); ctx.fillRect(-14 * s, -32 * s, 28 * s, 64 * s);
+  ctx.fillStyle = rgba([200, 235, 255], .9); ctx.strokeStyle = rgba([255, 255, 255], .9); ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.ellipse(0, 0, 7 * s, 26 * s, 0, 0, TAU); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+const SPH = { cx: 800, cy: 450, R: 330 };
+const BEAMS = Array.from({ length: 12 }, (_, i) => i * TAU / 12 + TAU / 24);
+// beam front travels from outside the frame to the lens, then a focused cone to the pellet
+function beam(a, p, rTarget, al) {
+  const { cx, cy, R } = SPH, Rfar = 1150, rf = lerp(Rfar, rTarget, p);
+  const ux = Math.cos(a), uy = Math.sin(a), nx = -uy, ny = ux;
+  ctx.globalCompositeOperation = 'lighter';
+  const r1 = Math.max(rf, R);
+  line(cx + ux * Rfar, cy + uy * Rfar, cx + ux * r1, cy + uy * r1, C.laser, 34, .22 * al);
+  line(cx + ux * Rfar, cy + uy * Rfar, cx + ux * r1, cy + uy * r1, C.laser, 10, .75 * al);
+  if (rf < R) {
+    const w0 = 22, wf = lerp(w0, 2, (R - rf) / (R - rTarget));
+    ctx.fillStyle = rgba(C.laser, .5 * al); ctx.beginPath();
+    ctx.moveTo(cx + ux * R + nx * w0, cy + uy * R + ny * w0);
+    ctx.lineTo(cx + ux * rf + nx * wf, cy + uy * rf + ny * wf);
+    ctx.lineTo(cx + ux * rf - nx * wf, cy + uy * rf - ny * wf);
+    ctx.lineTo(cx + ux * R - nx * w0, cy + uy * R - ny * w0);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+}
+// one complete shot; T holds the timing of each stage in seconds of local shot time
+function shot(st, T, seed, opts = {}) {
+  const { cx, cy, R } = SPH;
+  const r0 = T.r0, rMin = r0 * .25;
+  const rAt = t => t < T.i0 ? r0 : lerp(r0, rMin, Math.pow(seg(t, T.i0, T.i1), 1.6));
+  const r = rAt(st);
+  const py = T.drop ? lerp(cy - R + 30, cy, Math.pow(seg(st, 0, T.drop), 2)) : cy;
+  const p = ease(seg(st, T.b0, T.b1)), ba = 1 - seg(st, T.i1, T.i1 + .25);
+  if (p > 0 && ba > 0) {
+    BEAMS.forEach(a => beam(a, p, r + 2, ba));
+    if (p >= 1) glow(cx, cy, r + 40, C.laser, .45 * ba);
+  }
+  // ablation plume
+  const life = Math.max(.6, (T.i1 - T.i0) * .8);
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 140; i++) {
+    const t0 = T.i0 - .4 + rnd(i + seed) * (T.i1 - T.i0 + .4), age = st - t0;
+    if (age <= 0 || age > life) continue;
+    const a = rnd(i + seed + 9) * TAU, rad = rAt(t0) + 260 * age / life;
+    ctx.fillStyle = rgba(mix(C.blanket, C.he, rnd(i + 2)), .7 * (1 - age / life));
+    ctx.beginPath(); ctx.arc(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad, 3, 0, TAU); ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  // pellet
+  const heat = seg(st, lerp(T.i0, T.i1, .4), T.i1);
+  if (st < T.ign + .1) {
+    ball(cx, py, r, mix([170, 182, 204], C.he, heat));
+    ctx.fillStyle = rgba(mix(C.tri, C.energy, heat), .9); ctx.beginPath(); ctx.arc(cx, py, r * .78, 0, TAU); ctx.fill();
+    ctx.fillStyle = rgba(mix([30, 40, 60], C.energy, heat), 1); ctx.beginPath(); ctx.arc(cx, py, r * .55, 0, TAU); ctx.fill();
+  }
+  if (opts.arrows) {
+    const ia = seg(st, T.i0 + .5, T.i0 + 1) * (1 - seg(st, T.i1 - .4, T.i1));
+    for (let j = 0; j < 8; j++) {
+      const a = j * TAU / 8;
+      arrow(cx + Math.cos(a) * (r + 95), cy + Math.sin(a) * (r + 95), cx + Math.cos(a) * (r + 30), cy + Math.sin(a) * (r + 30), C.energy, 3, ia, 12);
+    }
+  }
+  const hs = seg(st, T.i1, T.ign);
+  glow(cx, cy, 10 + 60 * hs, C.energy, hs * (1 - seg(st, T.burn, T.burn + .4)));
+  const b = seg(st, T.ign, T.burn);
+  if (b > 0) {
+    const rb = 14 + 110 * easeOut(b), fade = 1 - seg(st, T.burn, T.burn + T.fade);
+    glow(cx, cy, rb * 2.6, C.he, .9 * fade);
+    glow(cx, cy, rb, C.energy, fade);
+    for (let i = 0; i < 60; i++) {
+      const t0 = T.ign + .1 + rnd(i + seed + 40) * (T.burn - T.ign + .5), age = st - t0;
+      if (age <= 0) continue;
+      const a = rnd(i + seed + 70) * TAU, rad = 20 + 650 * age;
+      if (rad > R - 14) continue;
+      line(cx + Math.cos(a) * Math.max(0, rad - 40), cy + Math.sin(a) * Math.max(0, rad - 40), cx + Math.cos(a) * rad, cy + Math.sin(a) * rad, C.n, 3, .85);
+    }
+  }
+}
+const FIRST_SHOT = { r0: 58, drop: 0, b0: 2, b1: 3.4, i0: 4.5, i1: 7.5, ign: 8.3, burn: 9.4, fade: 1.6 };
+const REPEATS = (() => {
+  const out = []; let t0 = 11;
+  [3.4, 2.9].forEach((L, n) => {
+    const D = .3 * L;
+    out.push({ start: t0, n: n + 2, T: { r0: 44, drop: D, b0: D - .12 * L, b1: D, i0: D, i1: D + .15 * L, ign: D + .2 * L, burn: D + .3 * L, fade: .3 * L } });
+    t0 += L;
+  });
+  return out;
+})();
+CH.push({
+  title: 'Laser inertial confinement', short: 'Lasers', dur: 19, key: 6,
+  fact: 'Direct drive: the lasers hit the pellet itself. The whole implosion takes a few billionths of a second.',
+  beats: [
+    [0, 'The second approach uses no magnets. A fuel pellet about 2 mm across, a shell of frozen deuterium-tritium, sits at the centre of a spherical target chamber.'],
+    [2, 'Laser beams arrive from outside the chamber. Lenses in the chamber wall focus each beam onto the pellet, from every side at once.'],
+    [4.5, "The outer layer boils off outward. Like a rocket's exhaust, this pushes the rest of the fuel inward and crushes it to a small fraction of its size."],
+    [7.5, 'At the centre a hot spot ignites, and the fusion burn spreads outward through the compressed fuel. Its inertia holds it together for the fraction of a nanosecond it needs.'],
+    [11, 'Then the injector drops the next pellet into the centre, the lasers fire, and it fuses. Again and again: a power plant would repeat this about ten times a second.']
+  ],
+  draw(lt) {
+    const { cx, cy, R } = SPH;
+    sphere(cx, cy, R);
+    // fuel injector at the top of the sphere
+    ctx.fillStyle = rgba([110, 122, 146]); ctx.fillRect(cx - 14, cy - R - 60, 28, 72);
+    ctx.fillStyle = rgba([60, 70, 90]); ctx.fillRect(cx - 6, cy - R + 4, 12, 10);
+    if (lt < 11) shot(lt, FIRST_SHOT, 0, { arrows: true });
+    else {
+      let k = 0; REPEATS.forEach((s, i) => { if (lt >= s.start) k = i; });
+      const s = REPEATS[k];
+      // let the previous shot's afterglow finish under the new drop
+      if (k > 0) shot(lt - REPEATS[k - 1].start, REPEATS[k - 1].T, (k - 1) * 97);
+      else shot(lt, FIRST_SHOT, 0);
+      shot(lt - s.start, s.T, k * 97);
+    }
+    BEAMS.forEach(a => lens(cx + Math.cos(a) * R, cy + Math.sin(a) * R, a));
+    // labels
+    const lx = 1205;
+    const stages = [
+      [0, 2, 'Fuel pellet', 'about 2 mm across, drawn enlarged', C.ink],
+      [2, 4.5, 'Laser beams', 'focused by lenses onto the pellet', C.laser],
+      [4.5, 7.5, 'Implosion', 'shell blows off, fuel driven inward', C.blanket],
+      [7.5, 8.4, 'Hot spot ignites', 'at the centre of the crushed fuel', C.energy],
+      [8.4, 11, 'Burn spreads', 'neutrons fly out', C.he]
+    ];
+    stages.forEach(([a, b2, t1, t2, c]) => sideLabel(t1, t2, lx, 420, seg(lt, a, a + .4) * (1 - seg(lt, b2 - .3, b2)), c));
+    const la = BEAMS[0], lp = [cx + Math.cos(la) * R, cy + Math.sin(la) * R];
+    const lensA = seg(lt, 2.4, 3) * (1 - seg(lt, 5, 5.5));
+    if (lensA) { line(lp[0] + 18, lp[1] + 18, 1190, 640, C.dim, 1.5, lensA); text('Focusing lens', 1200, 650, { size: 22, weight: 600, a: lensA }); }
+    if (lt >= 11) {
+      let k = 0; REPEATS.forEach((s, i) => { if (lt >= s.start) k = i; });
+      const sa = seg(lt, REPEATS[k].start, REPEATS[k].start + .25);
+      sideLabel(`Shot ${REPEATS[k].n}`, '', lx, 400, sa, C.he);
+      text('A plant would fire about', lx, 460, { size: 18, c: C.dim, a: seg(lt, 11, 11.5) });
+      text('10 times a second.', lx, 460 + 26 * FS, { size: 18, c: C.dim, a: seg(lt, 11, 11.5) });
+      text('(slowed down here)', lx, 460 + 52 * FS, { size: 18, c: C.dim, a: seg(lt, 11, 11.5) });
+      const ia = seg(lt, 11, 11.5) * (1 - seg(lt, 14.5, 15));
+      if (ia) { line(cx + 20, cy - R - 40, 930, 70, C.dim, 1.5, ia); text('Fuel injector', 940, 62, { size: 22, weight: 600, a: ia }); }
+    }
+    text('Spherical target chamber, about 10 m across (pellet not to scale)', 800, 868, { size: 17, c: C.dim, align: 'center' });
+  }
+});
+
+// 5. Energy capture (same for both)
+CH.push({
+  title: 'Capturing the energy', short: 'Blanket', dur: 25, key: 21.5,
+  fact: 'Neutrons carry 80% of the energy (14.1 of 17.6 MeV). In the blanket: n + ⁶Li → T + ⁴He + 4.8 MeV.',
+  beats: [
+    [0, 'Whichever method holds the fuel, the reaction releases the same thing: fast neutrons.'],
+    [4, "Neutrons have no charge, so magnets can't hold them. They fly straight out and are stopped in a thick blanket around the reactor."],
+    [9, 'That means the energy is collected the same way in both designs. The blanket heats up, and a coolant carries the heat out to the plant.'],
+    [14, 'The blanket also contains lithium. When a neutron hits lithium-6, it splits into helium and new tritium.'],
+    [19, 'A tritium extraction plant pulls the new tritium out of the blanket and sends it back into the reactor as fuel.']
+  ],
+  draw(lt) {
+    const heat = ease(seg(lt, 2, 8));
+    const u = ease(seg(lt, 9, 11.5)), sa = 1 - u;
+    const bcol = mix([110, 52, 40], C.blanket, heat);
+    if (sa > 0) {
+      ctx.save(); ctx.globalAlpha = sa;
+      // left: tokamak
+      const L = [430 + u * 90, 380];
+      // the chapter 3 tokamak, scaled down, wrapped in a blanket
+      ctx.save(); ctx.translate(L[0], L[1]); ctx.scale(.42, .42); ctx.translate(-800, -470);
+      const P = tokamak(lt + 20, { coils: () => 1, pf: 1, plasma: 1, field: 1, fieldA: .6 });
+      // fusion flashes in the plasma
+      for (let j = 0; j < 70; j++) {
+        const age = lt - (j * .3 + .2 * rnd(j + 700));
+        if (age < 0 || age > .45) continue;
+        const p = P(rnd(j + 710) * TAU, rnd(j + 720) * TAU, 70 * rnd(j + 730));
+        glow(p[0], p[1], 60 + 120 * age, C.energy, 1 - age / .45);
+        glow(p[0], p[1], 28, [255, 255, 255], 1 - age / .45);
+      }
+      ctx.strokeStyle = rgba(bcol, .95); ctx.lineWidth = 70;
+      ctx.beginPath(); ctx.ellipse(800, 470, 640, 420, 0, 0, TAU); ctx.stroke();
+      for (let i = 0; i < 40; i++) {
+        const s = (lt * .9 + rnd(i + 4)) % 1;
+        const p0 = P(rnd(i) * TAU, rnd(i + 9) * TAU, 50 * rnd(i + 13));
+        const ang = Math.atan2((p0[1] - 470) / 420, (p0[0] - 800) / 640);
+        const x1 = 800 + Math.cos(ang) * 605, y1 = 470 + Math.sin(ang) * 385;
+        ball(lerp(p0[0], x1, s), lerp(p0[1], y1, s), 11, C.n);
+      }
+      ctx.restore();
+      glow(L[0] + 269, L[1], 60, C.blanket, .5 * heat); glow(L[0] - 269, L[1], 60, C.blanket, .5 * heat);
+      text('Magnetic', L[0], 150, { size: 28, weight: 600, align: 'center' });
+      text('Blanket', L[0], 590, { size: 20, align: 'center', c: C.blanket });
+      // right: laser chamber
+      const Rc = [1170 - u * 650, 380];
+      const pulse = (lt % 1.2) / 1.2;
+      sphere(Rc[0], Rc[1], 150);
+      glow(Rc[0], Rc[1], 30 + 110 * pulse, C.energy, 1 - pulse);
+      ctx.strokeStyle = rgba(bcol); ctx.lineWidth = 36;
+      ctx.beginPath(); ctx.arc(Rc[0], Rc[1], 190, 0, TAU); ctx.stroke();
+      glow(Rc[0], Rc[1] - 190, 60, C.blanket, .5 * heat); glow(Rc[0], Rc[1] + 190, 60, C.blanket, .5 * heat);
+      const sN = clamp((lt % 1.2) / .55);
+      if (sN < 1) for (let i = 0; i < 40; i++) {
+        const a = rnd(i + 50) * TAU;
+        ball(Rc[0] + Math.cos(a) * (10 + sN * 162), Rc[1] + Math.sin(a) * (10 + sN * 162), 5, C.n);
+      }
+      text('Laser', Rc[0], 140, { size: 28, weight: 600, align: 'center' });
+      text('Blanket', Rc[0], 618, { size: 20, align: 'center', c: C.blanket });
+      text('Same neutrons, same blanket', 800, 740, { size: 32, weight: 600, align: 'center', c: C.energy, a: seg(lt, 5, 6) });
+      ctx.restore();
+    }
+    if (u > 0) {
+      ctx.save(); ctx.globalAlpha = u;
+      const cx = 520, cy = 380;
+      glow(cx, cy, 120, C.plasma, .6); glow(cx, cy, 60, C.energy, .9);
+      ctx.strokeStyle = rgba(bcol); ctx.lineWidth = 60;
+      ctx.beginPath(); ctx.arc(cx, cy, 150, 0, TAU); ctx.stroke();
+      glow(cx, cy, 200, C.blanket, .25);
+      for (let i = 0; i < 40; i++) {
+        const a = rnd(i + 90) * TAU, s = (lt * .8 + rnd(i + 3)) % 1;
+        ball(cx + Math.cos(a) * (25 + s * 100), cy + Math.sin(a) * (25 + s * 100), 5, C.n);
+      }
+      text('Fusion fuel (magnets or lasers)', cx + 60, cy + 222, { size: 20, weight: 600, align: 'center' });
+      text('Blanket: lithium, steel and coolant', cx, 175, { size: 22, weight: 600, align: 'center', c: C.blanket });
+      // coolant pipes
+      const hotP = [[690, 340], [1530, 340]], coldP = [[1530, 425], [690, 425]];
+      pline(hotP, mix(C.hot, [60, 30, 30], .4), 18, 1); pline(coldP, mix(C.cold, [20, 30, 60], .4), 18, 1);
+      flowDots(hotP, lt * 160, 46, C.hot, 5, 1);
+      flowDots(coldP, lt * 160, 46, C.cold, 5, 1);
+      text('Hot coolant to the steam generator →', 1530, 302, { size: 21, align: 'right', c: C.hot });
+      text('← Cooled coolant returns', 1530, 465, { size: 21, align: 'right', c: C.cold });
+      ctx.restore();
+    }
+    // breeding inset
+    const ba = seg(lt, 14, 14.8);
+    if (ba > 0) {
+      ctx.save(); ctx.globalAlpha = ba;
+      panel(740, 540, 800, 300);
+      text('n + ⁶Li → T + ⁴He + 4.8 MeV', 765, 572, { size: 21, mono: true, c: C.he });
+      const lx = 1000, ly = 700, hit = seg(lt, 14.6, 16);
+      if (lt < 16) {
+        nucleus(lx, ly, ['p', 'n', 'p', 'n', 'p', 'n'], 18);
+        text('lithium-6', lx, ly + 62, { size: 18, align: 'center', c: C.dim });
+        ball(lerp(790, lx - 44, hit), ly, 18, C.n);
+      } else {
+        const s = easeOut(seg(lt, 16, 17.6)), fl = seg(lt, 16, 16.9);
+        glow(lx, ly, 40 + 160 * fl, C.energy, (1 - fl) * .9);
+        const tx = lerp(lx, 1250, s), ty = lerp(ly, 640, s), hx = lerp(lx, 1250, s), hy = lerp(ly, 770, s);
+        nucleus(tx, ty, ['p', 'n', 'n'], 18);
+        nucleus(hx, hy, ['p', 'n', 'n', 'p'], 18);
+        const la = seg(lt, 17, 17.8);
+        text('Tritium: new fuel', tx + 50, ty, { size: 20, weight: 600, c: C.tri, a: la });
+        text('Helium', hx + 50, hy, { size: 20, c: C.dim, a: la });
+      }
+      ctx.restore();
+    }
+    // tritium extraction plant: blanket -> plant -> back into the fuel
+    const xa = seg(lt, 18.5, 19.3);
+    if (xa > 0) {
+      ctx.save(); ctx.globalAlpha = xa;
+      const outP = [[396, 504], [300, 600], [300, 640]], backP = [[180, 640], [180, 380], [430, 380]];
+      pline(outP, mix(C.tri, C.bg, .55), 12); pline(backP, mix(C.tri, C.bg, .55), 12);
+      ctx.fillStyle = rgba([24, 32, 48]); ctx.strokeStyle = rgba(C.tri, .9); ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.roundRect(110, 640, 240, 100, 12); ctx.fill(); ctx.stroke();
+      text('Tritium extraction', 230, 678, { size: 21, weight: 600, align: 'center', c: C.tri });
+      text('separates T from the blanket', 230, 708, { size: 15, align: 'center', c: C.dim });
+      const along = (pts, d) => {
+        for (let i = 1; i < pts.length; i++) {
+          const l = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+          if (d <= l) return [lerp(pts[i - 1][0], pts[i][0], d / l), lerp(pts[i - 1][1], pts[i][1], d / l)];
+          d -= l;
+        }
+        return pts[pts.length - 1];
+      };
+      const run = Math.max(0, lt - 19);
+      [[outP, 176], [backP, 700]].forEach(([pts, len], j) => {
+        for (let k = 0; k < (j ? 6 : 2); k++) {
+          const d = (run * 110 + k * 120) % len, q = along(pts, d);
+          if (run * 110 >= k * 120) nucleus(q[0], q[1], ['p', 'n', 'n'], 7);
+        }
+      });
+      text('new fuel →', 300, 352, { size: 18, weight: 600, c: C.tri, align: 'center' });
+      ctx.restore();
+    }
+  }
+});
+
+// 6. Power plant
+CH.push({
+  title: 'The power plant', short: 'Plant', dur: 22, key: 19,
+  fact: 'The reaction emits no CO₂. Reactor parts become radioactive over time, but there is no long-lived high-level waste.',
+  beats: [
+    [0, 'From here on, a fusion plant works like any other thermal power station.'],
+    [3, 'Hot coolant from the blanket flows to a steam generator and boils water.'],
+    [7, 'The steam spins a turbine, and the turbine drives a generator.'],
+    [11, 'A condenser and a cooling tower turn the steam back into water for the next loop.'],
+    [14, 'Electricity goes out to the grid. A plant only pays off if it makes more power than it uses to run its magnets or lasers.']
+  ],
+  draw(lt) {
+    const gy = 780;
+    line(0, gy, W, gy, C.metal, 2, .8);
+    // reactor building
+    ctx.fillStyle = rgba([24, 30, 44]); ctx.strokeStyle = rgba(C.metal); ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(70, gy); ctx.lineTo(70, 400); ctx.arc(250, 400, 180, Math.PI, 0); ctx.lineTo(430, gy); ctx.closePath(); ctx.fill(); ctx.stroke();
+    const core = .6 + .4 * seg(lt, 0, 2);
+    glow(250, 560, 130, C.plasma, .5 * core); glow(250, 560, 55, C.energy, .9 * core);
+    ctx.strokeStyle = rgba(C.blanket, .95); ctx.lineWidth = 34; ctx.beginPath(); ctx.arc(250, 560, 95, 0, TAU); ctx.stroke();
+    // steam generator
+    ctx.strokeStyle = rgba(C.metal); ctx.lineWidth = 3;
+    ctx.fillStyle = rgba([30, 38, 54]); ctx.beginPath(); ctx.roundRect(540, 420, 100, 320, 40); ctx.fill(); ctx.stroke();
+    const boil = seg(lt, 3, 5), wl = 600;
+    ctx.save(); ctx.beginPath(); ctx.roundRect(542, 422, 96, 316, 38); ctx.clip();
+    ctx.fillStyle = rgba(C.cold, .35); ctx.fillRect(540, wl, 100, 140);
+    ctx.fillStyle = rgba(C.steam, .32 * ease(seg(lt, 3.5, 6.5))); ctx.fillRect(540, lerp(wl, 420, ease(seg(lt, 3.5, 6.5))), 100, 200);
+    for (let i = 0; i < 6; i++) {
+      const s2 = (lt * .25 + i / 6) % 1;
+      ctx.fillStyle = rgba(C.steam, .2 * ease(seg(lt, 3.5, 6.5)) * (1 - s2));
+      ctx.beginPath(); ctx.arc(560 + rnd(i + 31) * 60, wl - 10 - s2 * 150, 16 + 14 * s2, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+    line(546, wl, 634, wl, C.cold, 2, .9);
+    // bubbles rising from the hot tube to the water line
+    if (boil > 0) for (let i = 0; i < 26; i++) {
+      const s2 = (lt * (.6 + .4 * rnd(i + 70)) + rnd(i + 80)) % 1;
+      const bx = 552 + rnd(i + 90) * 76 + Math.sin(lt * 5 + i) * 3, by = lerp(690, wl + 4, s2);
+      ctx.strokeStyle = rgba(C.steam, .8 * boil); ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(bx, by, 2.5 + 2.5 * s2, 0, TAU); ctx.stroke();
+    }
+    ctx.strokeStyle = rgba(C.metal); ctx.lineWidth = 3;
+    // turbine, generator, condenser
+    ctx.beginPath(); ctx.moveTo(760, 310); ctx.lineTo(1000, 280); ctx.lineTo(1000, 400); ctx.lineTo(760, 370); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.roundRect(1060, 295, 130, 90, 10); ctx.fill(); ctx.stroke();
+    line(1000, 340, 1060, 340, C.metal, 8);
+    ctx.beginPath(); ctx.roundRect(780, 590, 200, 110, 10); ctx.fill(); ctx.stroke();
+    // cooling tower
+    ctx.beginPath(); ctx.moveTo(1030, gy); ctx.quadraticCurveTo(1075, 640, 1050, 540); ctx.lineTo(1170, 540); ctx.quadraticCurveTo(1145, 640, 1190, gy); ctx.closePath(); ctx.fill(); ctx.stroke();
+    // pylon and city
+    const pylon = x => { pline([[x - 30, gy], [x, 470], [x + 30, gy]], C.metal, 3); line(x - 40, 490, x + 40, 490, C.metal, 3); };
+    pylon(1290);
+
+    // pipes
+    // hot coolant: reactor -> U-tube under the water -> back to the reactor
+    const hotP = [[317, 627], [400, 700], [540, 700], [618, 700], [618, 650], [540, 650]], coldP = [[540, 650], [380, 650], [340, 600]];
+    const steamP = [[590, 424], [590, 340], [760, 340]], exhP = [[880, 385], [880, 590]];
+    const feedP = [[780, 692], [700, 692], [700, 620], [640, 620]];
+    // cooling water circuit: tower basin -> zigzag coil in the condenser -> spray inside the tower
+    const coilIn = [[1110, 755], [1010, 755], [1010, 680], [980, 680], [800, 680], [800, 660], [960, 660]];
+    const coilOut = [[960, 660], [960, 640], [800, 640], [800, 620], [980, 620], [1110, 620]];
+    const f1 = seg(lt, 2, 3), f2 = seg(lt, 6, 7), f3 = seg(lt, 10.5, 11.5);
+    const warm = mix(C.cold, [175, 185, 205], .6);
+    pline(hotP, mix(C.hot, C.bg, .45), 12); pline(coldP, mix(C.cold, C.bg, .45), 12);
+    pline(steamP, mix(C.steam, C.bg, .6), 14); pline(exhP, mix(C.steam, C.bg, .6), 12);
+    pline(feedP, mix(C.cold, C.bg, .45), 10);
+    pline(coilIn, mix(C.cold, C.bg, .4), 8); pline(coilOut, mix(warm, C.bg, .4), 8);
+    flowDots(hotP, lt * 120, 40, C.hot, 4.5, f1); flowDots(coldP, lt * 120, 40, C.cold, 4.5, f1);
+    flowDots(steamP, lt * 160, 36, C.steam, 4.5, f2); flowDots(exhP, lt * 90, 30, C.steam, 4, f2);
+    flowDots(feedP, lt * 90, 34, C.cold, 4, f3);
+    flowDots(coilIn, lt * 90, 30, C.cold, 3.5, f3); flowDots(coilOut, lt * 90, 30, warm, 3.5, f3);
+    // in the condenser: steam meets the cold coil and turns into water droplets
+    if (f2 > 0) for (let i = 0; i < 30; i++) {
+      const s2 = (lt * .5 + rnd(i + 120)) % 1, dx = 812 + rnd(i + 130) * 156, dy = lerp(596, 690, s2);
+      const water = dy > 618 && f3 > 0;
+      ctx.fillStyle = water ? rgba(C.cold, .95 * f3) : rgba(C.steam, .8 * f2);
+      ctx.beginPath(); ctx.arc(dx, dy, water ? 3 : 4.5, 0, TAU); ctx.fill();
+    }
+    ctx.fillStyle = rgba(C.cold, .5 * f3); ctx.fillRect(784, 688, 192, 9);
+    // water falling inside the cooling tower back to its basin
+    if (f3 > 0) for (let i = 0; i < 18; i++) {
+      const s2 = (lt * .8 + rnd(i + 150)) % 1;
+      ctx.fillStyle = rgba(warm, .8 * f3); ctx.beginPath(); ctx.arc(1080 + rnd(i + 160) * 60, lerp(628, 750, s2), 2.5, 0, TAU); ctx.fill();
+    }
+    glow(590, 680, 60, C.hot, .3 * f1);
+    // vapour from cooling tower
+    for (let i = 0; i < 10; i++) {
+      const s = (lt * .12 + i / 10) % 1;
+      const vx = 1110 + Math.sin(i * 2.3 + lt * .4) * 14 + s * 150, vy = 530 - s * 120;
+      ctx.fillStyle = rgba(C.steam, .18 * (1 - s) * f3 * (1 - seg(s, .6, 1))); ctx.beginPath(); ctx.arc(vx, vy, 22 + 30 * s, 0, TAU); ctx.fill();
+    }
+
+
+    // turbine spin (angle is the integral of a speed ramp)
+    const x = clamp(lt - 6, 0, 2), spin = 1.5 * x * x + 6 * Math.max(0, lt - 8);
+    ctx.save(); ctx.beginPath(); ctx.moveTo(760, 310); ctx.lineTo(1000, 280); ctx.lineTo(1000, 400); ctx.lineTo(760, 370); ctx.closePath(); ctx.clip();
+    for (let i = 0; i < 12; i++) {
+      const xx = 770 + ((i * 20 + spin * 12) % 240);
+      line(xx, 270, xx, 410, C.steam, 3, .25 + .35 * f2);
+    }
+    ctx.restore();
+    // generator symbol
+    const gen = seg(lt, 9, 10);
+    ctx.save(); ctx.translate(1125, 340); ctx.rotate(spin);
+    for (let i = 0; i < 4; i++) { ctx.rotate(TAU / 4); line(0, 0, 0, -30, mix(C.metal, C.he, gen), 5); }
+    ctx.restore();
+    glow(1125, 340, 70, C.he, .35 * gen);
+
+    // grid wires and pulses
+    const wire = [[1190, 320], [1250, 400], [1290, 490], [1340, 560], [1380, 600]];
+    pline(wire, C.metal, 2.5);
+    flowDots(wire, lt * 260, 70, C.he, 5, seg(lt, 11, 12));
+    // city
+    const city = [[1380, 140], [1420, 230], [1462, 170], [1500, 290], [1540, 200]];
+    const lit = seg(lt, 13, 20);
+    city.forEach(([bx, hgt], bi) => {
+      ctx.fillStyle = rgba([26, 32, 46]); ctx.strokeStyle = rgba(C.metal); ctx.lineWidth = 2;
+      ctx.fillRect(bx, gy - hgt, 36, hgt); ctx.strokeRect(bx, gy - hgt, 36, hgt);
+      for (let wy = gy - hgt + 14; wy < gy - 10; wy += 22) for (let wx = 0; wx < 2; wx++) {
+        const on = rnd(bi * 50 + wy + wx * 7) < lit;
+        ctx.fillStyle = on ? rgba(C.he, .95) : rgba([50, 58, 76]);
+        ctx.fillRect(bx + 7 + wx * 14, wy, 8, 10);
+      }
+    });
+    if (lit > .5) glow(1460, 650, 220, C.he, .12 * lit);
+
+    // labels
+    const L = (s, x2, y2, t0, align = 'center', c = C.ink) => text(s, x2, y2, { size: 22, weight: 600, align, a: seg(lt, t0, t0 + .7), c });
+    L('Fusion core + blanket', 250, 180, .3);
+    L('Steam generator', 590, 800 + 20, 2.5);
+    L('Turbine', 880, 245, 6.5);
+    L('Generator', 1125, 255, 9);
+    L('Condenser', 880, 722, 10.5);
+    text('cooling water loop', 880, 752, { size: 17, align: 'center', c: C.cold, a: seg(lt, 11, 11.7) });
+    text('water line', 650, 596, { size: 15, c: C.cold, a: seg(lt, 2.5, 3.2) });
+    L('Cooling tower', 1110, 820, 11);
+    L('Grid', 1460, 820, 12, 'center', C.he);
+    scaleBar(150, '≈ 50 m');
+  }
+});
+
+// timeline bookkeeping
+let acc = 0;
+CH.forEach(c => { c.start = acc; acc += c.dur; });
+const TOTAL = acc;
+
+function chapterAt(t) {
+  for (let i = CH.length - 1; i >= 0; i--) if (t >= CH[i].start) return i;
+  return 0;
+}
+
+function render() {
+  const i = chapterAt(Math.min(t, TOTAL - 1e-6)), c = CH[i], lt = Math.min(t, TOTAL) - c.start;
+  ctx.setTransform(k, 0, 0, k, 0, 0);
+  ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = rgba(C.bg); ctx.fillRect(0, 0, W, H);
+  ctx.save();
+  // each chapter opens with a short zoom-out from the previous scale
+  if (i > 0) {
+    const s = lerp(1.6, 1, ease(seg(lt, 0, 1.6)));
+    ctx.translate(W / 2, H / 2); ctx.scale(s, s); ctx.translate(-W / 2, -H / 2);
+  }
+  c.draw(lt);
+  ctx.restore();
+  const fadeIn = i > 0 ? seg(lt, 0, .6) : 1;
+  const fadeOut = i < CH.length - 1 ? 1 - seg(lt, c.dur - .5, c.dur) : 1;
+  const a = 1 - fadeIn * fadeOut;
+  if (a > 0) { ctx.fillStyle = rgba(C.bg, a); ctx.fillRect(0, 0, W, H); }
+  updateUI(i, lt);
+}
+
+// ---------- UI ----------
+const $ = id => document.getElementById(id);
+const scrub = $('scrub'), clock = $('clock'), playBtn = $('play');
+scrub.max = TOTAL.toFixed(2);
+const fmt = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const chapList = $('chapters');
+const chapBtns = CH.map((c, i) => {
+  const li = document.createElement('li');
+  const b = document.createElement('button');
+  b.className = 'chap'; b.type = 'button'; b.id = 'chap-' + (i + 1);
+  b.innerHTML = `<span class="n">${String(i + 1).padStart(2, '0')}</span><span class="t">${c.title}</span><span class="bar"></span>`;
+  b.addEventListener('click', () => jump(i));
+  li.appendChild(b); chapList.appendChild(li);
+  return b;
+});
+// narration script
+$('script').innerHTML = CH.map((c, i) => `<section><h3>${i + 1}. ${c.title}</h3><ol>${
+  c.beats.map(([at, s]) => `<li><span class="ts">${fmt(c.start + at)}</span><span>${s}</span></li>`).join('')
+}</ol></section>`).join('');
+
+let lastKey = '';
+function updateUI(i, lt) {
+  scrub.value = t.toFixed(2);
+  clock.textContent = `${fmt(t)} / ${fmt(TOTAL)}`;
+  chapBtns.forEach((b, j) => {
+    const cur = j === i;
+    if (cur) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current');
+    const prog = j < i ? 1 : j === i ? lt / CH[j].dur : 0;
+    b.lastElementChild.style.width = (prog * 100).toFixed(1) + '%';
+  });
+  const c = CH[i];
+  let bi = 0; c.beats.forEach(([at], j) => { if (lt >= at) bi = j; });
+  const key = i + ':' + bi;
+  if (key !== lastKey) {
+    lastKey = key;
+    $('cap-eyebrow').textContent = `Chapter ${i + 1} of ${CH.length} · ${c.title}`;
+    $('cap-text').textContent = c.beats[bi][1];
+    $('cap-fact').textContent = c.fact;
+    cv.setAttribute('aria-label', `${c.title}: ${c.beats[bi][1]}`);
+  }
+}
+
+const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+let t = reduce ? CH[0].key : 0, playing = false, lastTs = 0;
+function setPlaying(p) {
+  playing = p;
+  $('ico-play').hidden = p; $('ico-pause').hidden = !p;
+  playBtn.setAttribute('aria-label', p ? 'Pause' : 'Play');
+  if (p) { if (t >= TOTAL) t = 0; lastTs = 0; requestAnimationFrame(tick); }
+}
+function tick(ts) {
+  if (!playing) return;
+  if (lastTs) t += Math.min(.1, (ts - lastTs) / 1000);
+  lastTs = ts;
+  if (t >= TOTAL) { t = TOTAL; render(); setPlaying(false); return; }
+  render();
+  requestAnimationFrame(tick);
+}
+function jump(i) {
+  i = clamp(i, 0, CH.length - 1);
+  t = CH[i].start + (reduce && !playing ? CH[i].key : 0);
+  render();
+}
+playBtn.addEventListener('click', () => setPlaying(!playing));
+$('replay').addEventListener('click', () => { t = 0; render(); setPlaying(true); });
+scrub.addEventListener('input', () => { t = parseFloat(scrub.value); render(); });
+document.addEventListener('keydown', e => {
+  if (e.target.closest && e.target.closest('summary, input')) return;
+  if (e.key === ' ' && !(e.target instanceof HTMLButtonElement)) { e.preventDefault(); setPlaying(!playing); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); jump(chapterAt(t) + 1); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); const i = chapterAt(t); jump(t - CH[i].start > 1.5 ? i : i - 1); }
+});
+
+new ResizeObserver(resize).observe(cv);
+if (document.fonts) document.fonts.ready.then(render);
+resize();
+if (!reduce) setPlaying(true);
+window.__fusion = { seek: s => { t = s; render(); }, chapters: CH, total: TOTAL, pause: () => setPlaying(false) };
+})();
+</script>
+</body>
+</html>

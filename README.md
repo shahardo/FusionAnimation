@@ -15,6 +15,7 @@ An animated explainer of nuclear fusion, from two nuclei to a working power plan
 
 - Play/pause and restart buttons, a scrubber, and chapter buttons.
 - Keyboard: Space plays and pauses; the left and right arrow keys jump between chapters.
+- **Narration** button: reads the captions aloud using the browser's built-in speech synthesis. While a caption is being read, the animation waits at the caption boundary, so voice and picture stay in sync.
 - A timestamped narration script for a voice-over is included on the page.
 
 ## How it works

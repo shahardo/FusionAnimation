@@ -58,6 +58,15 @@ h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(30px, 
 .btn:hover { border-color: var(--accent); }
 .btn:focus-visible, .chap:focus-visible, input[type="range"]:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .btn svg { width: 18px; height: 18px; fill: currentColor; }
+.pill {
+  appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: inherit; font-size: 14px; font-weight: 500;
+  height: 44px; border-radius: 22px; padding: 0 14px 0 12px; display: flex; align-items: center; gap: 8px; cursor: pointer; flex: none;
+}
+.pill svg { width: 18px; height: 18px; fill: currentColor; }
+.pill:hover { border-color: var(--accent); }
+.pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pill[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--fg); }
+@media (max-width: 440px) { .pill .lbl { display: none; } .pill { padding: 0 12px; } }
 #scrub { flex: 1; min-width: 0; accent-color: var(--accent); height: 28px; }
 .clock { font-family: var(--font-mono); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
@@ -116,6 +125,11 @@ summary { cursor: pointer; font-weight: 600; }
     <button class="btn" id="replay" type="button" aria-label="Restart from the beginning">
       <svg viewBox="0 0 24 24"><path d="M12 5a7 7 0 1 1-7 7h2.2A4.8 4.8 0 1 0 12 7.2V10L7.5 6 12 2z"/></svg>
     </button>
+    <button class="pill" id="narr" type="button" aria-pressed="false" title="Read the captions aloud">
+      <svg id="ico-snd" viewBox="0 0 24 24" hidden><path d="M4 9h4l5-4v14l-5-4H4zM16 8.5a5 5 0 0 1 0 7l-1.4-1.4a3 3 0 0 0 0-4.2zM18.5 6a8.5 8.5 0 0 1 0 12l-1.4-1.4a6.5 6.5 0 0 0 0-9.2z"/></svg>
+      <svg id="ico-mute" viewBox="0 0 24 24"><path d="M4 9h4l5-4v14l-5-4H4zM16.3 9.7l1.4-1.4 2.3 2.3 2.3-2.3 1.4 1.4-2.3 2.3 2.3 2.3-1.4 1.4-2.3-2.3-2.3 2.3-1.4-1.4 2.3-2.3z"/></svg>
+      <span class="lbl" id="narr-lbl">Narration off</span>
+    </button>
     <input type="range" id="scrub" min="0" max="130" step="0.01" value="0" aria-label="Animation position">
     <span class="clock" id="clock">0:00 / 2:10</span>
   </div>
@@ -132,7 +146,7 @@ summary { cursor: pointer; font-weight: 600; }
     <summary>Narration script (for voice-over)</summary>
     <div class="script-body" id="script"></div>
   </details>
-  <p class="note">Space plays and pauses. The left and right arrow keys jump between chapters. Diagrams are not to scale, except where a scale bar is shown.</p>
+  <p class="note">Narration uses your browser's built-in voice, so it sounds different on each device. While it reads, the animation waits at the end of each caption until the sentence is finished. Space plays and pauses. The left and right arrow keys jump between chapters. Diagrams are not to scale, except where a scale bar is shown.</p>
 </div>
 
 <script>
@@ -1068,30 +1082,95 @@ function updateUI(i, lt) {
   }
 }
 
+// ---------- narration (browser speech synthesis) ----------
+const BEATS = [];
+CH.forEach(c => c.beats.forEach(([at, txt]) => BEATS.push({ t: c.start + at, txt })));
+const beatAt = time => { let k = 0; BEATS.forEach((b, j) => { if (time >= b.t - 1e-6) k = j; }); return k; };
+const spoken = s => s
+  .replace(/(\d+(?:\.\d+)?) MeV/g, '$1 mega electron volts')
+  .replace(/°C/g, ' degrees Celsius')
+  .replace(/E = mc²/g, 'E equals m c squared');
+const synth = window.speechSynthesis;
+let narrOn = false, pendingUtt = 0, spokenIdx = -1, gen = 0, voice = null, stuck = 0;
+function pickVoice() {
+  if (!synth) return;
+  const vs = synth.getVoices().filter(v => /^en(-|_|$)/i.test(v.lang));
+  voice = vs.find(v => /natural|neural|online/i.test(v.name)) || vs.find(v => /google us english|samantha|daniel|aria|jenny/i.test(v.name)) || vs.find(v => v.lang === 'en-US') || vs[0] || null;
+}
+function stopSpeech() {
+  gen++; pendingUtt = 0; spokenIdx = -1;
+  try { synth && synth.cancel(); } catch (e) {}
+}
+function speakBeat(k) {
+  if (!synth) return;
+  try { synth.cancel(); } catch (e) {}
+  const g = ++gen, parts = spoken(BEATS[k].txt).match(/[^.!?]+[.!?]*/g) || [];
+  spokenIdx = k; pendingUtt = parts.length; stuck = 0;
+  parts.forEach(part => {
+    const u = new SpeechSynthesisUtterance(part.trim());
+    if (voice) u.voice = voice;
+    u.lang = voice ? voice.lang : 'en-US'; u.rate = 1;
+    const done = () => { if (g === gen) pendingUtt = Math.max(0, pendingUtt - 1); };
+    u.onend = done; u.onerror = done;
+    try { synth.speak(u); } catch (e) { done(); }
+  });
+}
+function narrate() {
+  if (!narrOn || !playing) return;
+  const k = beatAt(t);
+  if (k !== spokenIdx) speakBeat(k);
+}
+function setNarration(on) {
+  narrOn = on && !!synth;
+  const b = $('narr');
+  b.setAttribute('aria-pressed', String(narrOn));
+  $('narr-lbl').textContent = narrOn ? 'Narration on' : 'Narration off';
+  $('ico-snd').hidden = !narrOn; $('ico-mute').hidden = narrOn;
+  if (!narrOn) stopSpeech();
+  else { pickVoice(); spokenIdx = -1; if (!playing) setPlaying(true); else narrate(); }
+}
+if (synth) { pickVoice(); synth.addEventListener?.('voiceschanged', pickVoice); }
+else $('narr').hidden = true;
+$('narr').addEventListener('click', () => setNarration(!narrOn));
+
 const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let t = reduce ? CH[0].key : 0, playing = false, lastTs = 0;
 function setPlaying(p) {
   playing = p;
   $('ico-play').hidden = p; $('ico-pause').hidden = !p;
   playBtn.setAttribute('aria-label', p ? 'Pause' : 'Play');
+  if (synth && narrOn) {
+    try { if (!p && pendingUtt) synth.pause(); else if (p && pendingUtt) synth.resume(); } catch (e) {}
+  }
   if (p) { if (t >= TOTAL) t = 0; lastTs = 0; requestAnimationFrame(tick); }
 }
 function tick(ts) {
   if (!playing) return;
-  if (lastTs) t += Math.min(.1, (ts - lastTs) / 1000);
+  let dt = lastTs ? Math.min(.1, (ts - lastTs) / 1000) : 0;
   lastTs = ts;
+  if (narrOn && pendingUtt > 0) {
+    // hold just before the next caption until the current one has been read out
+    const next = spokenIdx + 1 < BEATS.length ? BEATS[spokenIdx + 1].t : TOTAL;
+    if (t + dt >= next - .04) dt = Math.max(0, next - .04 - t);
+    // recover if the browser drops its end events
+    stuck = synth.speaking || synth.pending ? 0 : stuck + (ts ? 1 : 0);
+    if (stuck > 90) pendingUtt = 0;
+  }
+  t += dt;
   if (t >= TOTAL) { t = TOTAL; render(); setPlaying(false); return; }
   render();
+  narrate();
   requestAnimationFrame(tick);
 }
 function jump(i) {
   i = clamp(i, 0, CH.length - 1);
   t = CH[i].start + (reduce && !playing ? CH[i].key : 0);
+  if (narrOn) stopSpeech();
   render();
 }
 playBtn.addEventListener('click', () => setPlaying(!playing));
-$('replay').addEventListener('click', () => { t = 0; render(); setPlaying(true); });
-scrub.addEventListener('input', () => { t = parseFloat(scrub.value); render(); });
+$('replay').addEventListener('click', () => { stopSpeech(); t = 0; render(); setPlaying(true); });
+scrub.addEventListener('input', () => { if (narrOn) stopSpeech(); t = parseFloat(scrub.value); render(); });
 document.addEventListener('keydown', e => {
   if (e.target.closest && e.target.closest('summary, input')) return;
   if (e.key === ' ' && !(e.target instanceof HTMLButtonElement)) { e.preventDefault(); setPlaying(!playing); }

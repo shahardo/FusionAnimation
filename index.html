@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="he">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -7,7 +7,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Hebrew:wght@400;500;600&family=Rubik:wght@600;700&display=swap">
 <style>
 /* Layout: a single column, with a dark "observation window" stage, then the transport controls, chapter rail, caption, and script below it. */
 :root {
@@ -95,6 +95,17 @@ summary { cursor: pointer; font-weight: 600; }
 .script-body .ts { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); padding-top: 2px; font-variant-numeric: tabular-nums; }
 .note { margin: 0; font-size: 13px; color: var(--muted); }
 
+.toprow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.lang {
+  appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: inherit; font-size: 14px; font-weight: 500;
+  border-radius: 16px; padding: 4px 14px; cursor: pointer; flex: none;
+}
+.lang:hover { border-color: var(--accent); }
+.lang:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wrap[dir="rtl"] { --font-body: "IBM Plex Sans Hebrew", "IBM Plex Sans", system-ui, sans-serif; --font-display: "Rubik", "IBM Plex Sans Hebrew", system-ui, sans-serif; font-family: var(--font-body); }
+.wrap[dir="rtl"] .kicker, .wrap[dir="rtl"] .eyebrow { letter-spacing: 0; font-family: var(--font-body); font-weight: 600; }
+.wrap[dir="rtl"] .fact { font-family: var(--font-body); }
+.wrap[dir="rtl"] h1 { letter-spacing: 0; }
 @media (max-width: 760px) {
   .chapters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .cap-text { font-size: 17px; }
@@ -106,18 +117,18 @@ summary { cursor: pointer; font-weight: 600; }
 </head>
 <body>
 
-<div class="wrap">
+<div class="wrap" id="wrap">
   <header>
-    <p class="kicker">Deuterium + tritium → helium + neutron → electricity</p>
-    <h1>Nucleus to Grid</h1>
-    <p class="dek">How nuclear fusion works, step by step: two nuclei overcome their repulsion, two ways of confining the fuel, and the steam plant that turns the released energy into electricity.</p>
+    <div class="toprow"><p class="kicker" id="t-kicker">Deuterium + tritium → helium + neutron → electricity</p><button class="lang" id="lang" type="button" lang="en">English</button></div>
+    <h1 id="t-h1">Nucleus to Grid</h1>
+    <p class="dek" id="t-dek">How nuclear fusion works, step by step: two nuclei overcome their repulsion, two ways of confining the fuel, and the steam plant that turns the released energy into electricity.</p>
   </header>
 
   <figure class="stage">
     <canvas id="cv" role="img" aria-label="Fusion animation"></canvas>
   </figure>
 
-  <div class="controls">
+  <div class="controls" dir="ltr">
     <button class="btn" id="play" type="button" aria-label="Play">
       <svg id="ico-play" viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>
       <svg id="ico-pause" viewBox="0 0 24 24" hidden><path d="M6 4h4.5v16H6zM13.5 4H18v16h-4.5z"/></svg>
@@ -143,17 +154,21 @@ summary { cursor: pointer; font-weight: 600; }
   </section>
 
   <details class="script" id="script-d">
-    <summary>Narration script (for voice-over)</summary>
+    <summary id="t-summary">Narration script (for voice-over)</summary>
     <div class="script-body" id="script"></div>
   </details>
-  <p class="note">Narration uses your browser's built-in voice, so it sounds different on each device. While it reads, the animation waits at the end of each caption until the sentence is finished. Space plays and pauses. The left and right arrow keys jump between chapters. Diagrams are not to scale, except where a scale bar is shown.</p>
+  <p class="note" id="t-note">Narration uses your browser's built-in voice, so it sounds different on each device. While it reads, the animation waits at the end of each caption until the sentence is finished. Space plays and pauses. The left and right arrow keys jump between chapters. Diagrams are not to scale, except where a scale bar is shown.</p>
 </div>
 
 <script>
 (() => {
 'use strict';
 const W = 1600, H = 900;
-const SANS = '"IBM Plex Sans", system-ui, sans-serif';
+const SANS = '"IBM Plex Sans", "IBM Plex Sans Hebrew", system-ui, sans-serif';
+let LANG = 'he';
+try { if (localStorage.getItem('fusion-lang') === 'en') LANG = 'en'; } catch (e) {}
+const tr = (en, he) => LANG === 'he' ? he : en;
+const HEB = /[\u0590-\u05FF]/;
 const MONO = '"IBM Plex Mono", ui-monospace, monospace';
 
 // Stage palette (the stage is always dark, like an observation window)
@@ -195,6 +210,7 @@ function text(s, x, y, o = {}) {
   ctx.fillStyle = rgba(o.c || C.ink, o.a ?? 1);
   ctx.textAlign = o.align || 'left';
   ctx.textBaseline = o.base || 'middle';
+  ctx.direction = HEB.test(s) ? 'rtl' : 'ltr';
   ctx.fillText(s, x, y);
 }
 function glow(x, y, R, c, a) {
@@ -284,22 +300,22 @@ function barrier(o) {
   const bx = 1060, by = 540, bw = 480, bh = 300;
   ctx.save(); ctx.globalAlpha = o.a;
   panel(bx, by, bw, bh);
-  text('ENERGY VS. DISTANCE', bx + 20, by + 26, { size: 14, mono: true, c: C.dim });
+  text(tr('ENERGY VS. DISTANCE', 'אנרגיה מול מרחק'), bx + 20, by + 26, { size: 14, mono: true, c: C.dim });
   const X = p => bx + 40 + p * (bw - 70);
   const y0 = by + 172, Y = V => y0 - Math.min(V, 1.15) * 105;
   line(X(0), y0, X(1), y0, C.dim, 1, .5, [5, 6]);
   const pts = [[X(.02), Y(-.9)], [X(.18), Y(-.9)], [X(.18), Y(1)]];
   for (let p = .18; p <= 1.001; p += .01) pts.push([X(p), Y(.18 / p)]);
   pline(pts, C.ink, 2.5, .9);
-  text('Coulomb barrier', X(.22), Y(1) - 4, { size: 15, c: C.p, weight: 600 });
-  text('strong-force well', X(.1), Y(-.9) + 20, { size: 14, c: C.dim, align: 'center' });
-  if (FS < 1.3) text('distance between nuclei →', bx + bw - 20, by + bh - 18, { size: 13, c: C.dim, align: 'right' });
+  text(tr('Coulomb barrier', 'מחסום קולון'), X(.22), Y(1) - 4, { size: 15, c: C.p, weight: 600 });
+  text(tr('strong-force well', 'בור הכוח החזק'), X(.1), Y(-.9) + 20, { size: 14, c: C.dim, align: 'center' });
+  if (FS < 1.3) text(tr('distance between nuclei →', '→ המרחק בין הגרעינים'), bx + bw - 20, by + bh - 18, { size: 13, c: C.dim, align: 'right' });
   const turn = .18 / o.E;
   line(X(turn), Y(o.E), X(1), Y(o.E), C.he, 1.5, .8, [6, 5]);
-  text('fuel energy', X(1), Y(o.E) - 14, { size: 13, c: C.he, align: 'right' });
+  text(tr('fuel energy', 'אנרגיית הדלק'), X(1), Y(o.E) - 14, { size: 13, c: C.he, align: 'right' });
   if (o.tunnel > 0) {
     line(X(.18), Y(o.E), X(turn), Y(o.E), C.energy, 2.5, o.tunnel, [3, 4]);
-    text('tunnelling', X(.18) - 8, Y(o.E) - 16, { size: 14, c: C.energy, align: 'right', a: o.tunnel, weight: 600 });
+    text(tr('tunnelling', 'מנהור'), X(.18) - 8, Y(o.E) - 16, { size: 14, c: C.energy, align: 'right', a: o.tunnel, weight: 600 });
   }
   const by_ = o.px < .18 ? Y(lerp(o.E, -.9, o.fused || 0)) : Y(o.E);
   glow(X(o.px), by_, 26, C.he, .6);
@@ -334,15 +350,15 @@ CH.push({
     arrow(xD - 60, cy, xD - 60 - L, cy, C.p, 4, aa);
     arrow(xT + 70, cy, xT + 70 + L, cy, C.p, 4, aa);
     if (rep > .25) {
-      text('push', xD - 60 - L / 2, cy - 26, { size: 18, c: C.p, align: 'center', a: seg(rep, .25, .6) });
-      text('push', xT + 70 + L / 2, cy - 26, { size: 18, c: C.p, align: 'center', a: seg(rep, .25, .6) });
+      text(tr('push', 'דחייה'), xD - 60 - L / 2, cy - 26, { size: 18, c: C.p, align: 'center', a: seg(rep, .25, .6) });
+      text(tr('push', 'דחייה'), xT + 70 + L / 2, cy - 26, { size: 18, c: C.p, align: 'center', a: seg(rep, .25, .6) });
     }
-    text('Deuterium', xD, cy + 92, { size: 26, weight: 600, align: 'center' });
-    text('1 p + 1 n', xD, cy + 92 + 32 * FS, { size: 19, c: C.dim, align: 'center' });
-    text('Tritium', xT, cy + 92, { size: 26, weight: 600, align: 'center' });
-    text('1 p + 2 n', xT, cy + 92 + 32 * FS, { size: 19, c: C.dim, align: 'center' });
-    text('Both positive: like charges repel', cx, 150, { size: 30, weight: 600, align: 'center', a: seg(lt, 1.5, 2) * (1 - seg(lt, 3.8, 4.2)) });
-    text('They bounce apart before they can fuse', cx, 150, { size: 30, weight: 600, align: 'center', c: C.p, a: seg(lt, 4.2, 4.7) });
+    text(tr('Deuterium', 'דאוטריום'), xD, cy + 92, { size: 26, weight: 600, align: 'center' });
+    text(tr('1 p + 1 n', 'פרוטון + נייטרון'), xD, cy + 92 + 32 * FS, { size: 19, c: C.dim, align: 'center' });
+    text(tr('Tritium', 'טריטיום'), xT, cy + 92, { size: 26, weight: 600, align: 'center' });
+    text(tr('1 p + 2 n', 'פרוטון + 2 נייטרונים'), xT, cy + 92 + 32 * FS, { size: 19, c: C.dim, align: 'center' });
+    text(tr('Both positive: like charges repel', 'שניהם חיוביים: מטענים זהים דוחים זה את זה'), cx, 150, { size: 30, weight: 600, align: 'center', a: seg(lt, 1.5, 2) * (1 - seg(lt, 3.8, 4.2)) });
+    text(tr('They bounce apart before they can fuse', 'הם ניתזים זה מזה לפני שהם מספיקים להתמזג'), cx, 150, { size: 30, weight: 600, align: 'center', c: C.p, a: seg(lt, 4.2, 4.7) });
     barrier({ a: 1, E: .45, px: .4 + (d - 300) / 700 * .55, tunnel: 0 });
     scaleBar(100, '≈ 3 fm');
   }
@@ -377,10 +393,10 @@ CH.push({
     ctx.beginPath(); ctx.roundRect(tx - 12, top - 10, 24, bot - top + 20, 12); ctx.stroke();
     ctx.fillStyle = rgba(mix(C.cold, C.hot, h)); ctx.beginPath(); ctx.roundRect(tx - 7, fy(temp), 14, bot - fy(temp) + 8, 7); ctx.fill();
     ball(tx, bot + 26, 24, mix(C.cold, C.hot, h));
-    line(tx + 16, fy(15), tx + 36, fy(15), C.dim, 2); text("Sun's core, 15 M", tx + 44, fy(15), { size: 15, c: C.dim });
-    [50, 100].forEach(T => { line(tx + 16, fy(T), tx + 30, fy(T), C.dim, 2); text(T + ' M', tx + 44, fy(T), { size: 15, c: C.dim }); });
-    line(tx + 16, fy(150), tx + 36, fy(150), C.he, 2); text('150 M', tx + 44, fy(150), { size: 15, c: C.he });
-    text(`${Math.round(temp)} million °C`, 60, 125, { size: 24, weight: 600, c: mix(C.ink, C.hot, h) });
+    line(tx + 16, fy(15), tx + 36, fy(15), C.dim, 2); text(tr("Sun's core, 15 M", 'ליבת השמש, 15 מיליון'), tx + 44, fy(15), { size: 15, c: C.dim });
+    [50, 100].forEach(T => { line(tx + 16, fy(T), tx + 30, fy(T), C.dim, 2); text(T + tr(' M', ' מיליון'), tx + 44, fy(T), { size: 15, c: C.dim }); });
+    line(tx + 16, fy(150), tx + 36, fy(150), C.he, 2); text(tr('150 M', '150 מיליון'), tx + 44, fy(150), { size: 15, c: C.he });
+    text(tr(`${Math.round(temp)} million °C`, `${Math.round(temp)} מיליון מעלות`), 60, 125, { size: 24, weight: 600, c: mix(C.ink, C.hot, h) });
     ctx.restore();
 
     // energy graph follows the pair currently on screen
@@ -417,10 +433,10 @@ CH.push({
       if (i < 2) glow(cx, cy, 2 * p.dmin + 60, C.p, .55 * near);
       nucleus(xD, yD, ['p', 'n'], 28);
       nucleus(xT, yT, ['p', 'n', 'n'], 28);
-      if (i < 2) text('repelled', cx, cy - 70, { size: 22, weight: 600, align: 'center', c: C.p, a: seg(lt, p.tc, p.tc + .15) * (1 - seg(lt, p.tc + .8, p.tc + 1.1)) });
+      if (i < 2) text(tr('repelled', 'נדחו'), cx, cy - 70, { size: 22, weight: 600, align: 'center', c: C.p, a: seg(lt, p.tc, p.tc + .15) * (1 - seg(lt, p.tc + .8, p.tc + 1.1)) });
     });
-    text('Deuterium →', 60 + 160, cy - 60, { size: 20, c: C.dim, a: seg(lt, 0, .3) * (1 - seg(lt, 1, 1.3)) });
-    text('← Tritium', W - 60, cy - 60, { size: 20, c: C.dim, align: 'right', a: seg(lt, 0, .3) * (1 - seg(lt, 1, 1.3)) });
+    text(tr('Deuterium →', '→ דאוטריום'), 60 + 160, cy - 60, { size: 20, c: C.dim, a: seg(lt, 0, .3) * (1 - seg(lt, 1, 1.3)) });
+    text(tr('← Tritium', 'טריטיום ←'), W - 60, cy - 60, { size: 20, c: C.dim, align: 'right', a: seg(lt, 0, .3) * (1 - seg(lt, 1, 1.3)) });
 
     // fusion products leave horizontally at constant speed (neutron 4x faster)
     if (lt >= FUSE_T) {
@@ -433,9 +449,9 @@ CH.push({
       ball(nx, cy, 28, C.n);
       glow(cx, cy, 80 + 520 * f, C.energy, (1 - f) * .95);
       const la = seg(lt, FUSE_T + .3, FUSE_T + .9), lnx = Math.min(nx, 1430);
-      text('Helium-4', hx, cy + 92, { size: 26, weight: 600, align: 'center', a: la });
+      text(tr('Helium-4', 'הליום-4'), hx, cy + 92, { size: 26, weight: 600, align: 'center', a: la });
       text('3.5 MeV', hx, cy + 92 + 32 * FS, { size: 20, mono: true, c: C.he, align: 'center', a: la });
-      text(nx > 1430 ? 'Neutron →' : 'Neutron', lnx, cy + 92, { size: 26, weight: 600, align: 'center', a: la });
+      text(nx > 1430 ? tr('Neutron →', '→ נייטרון') : tr('Neutron', 'נייטרון'), lnx, cy + 92, { size: 26, weight: 600, align: 'center', a: la });
       text('14.1 MeV', lnx, cy + 92 + 32 * FS, { size: 20, mono: true, c: C.he, align: 'center', a: la });
     }
 
@@ -445,7 +461,7 @@ CH.push({
       const bx = 1000, by = 540, bw = 540, bh = 300;
       ctx.save(); ctx.globalAlpha = ma;
       panel(bx, by, bw, bh);
-      text('MASS BEFORE AND AFTER (u)', bx + 20, by + 26, { size: 14, mono: true, c: C.dim });
+      text(tr('MASS BEFORE AND AFTER (u)', 'המסה לפני ואחרי (u)'), bx + 20, by + 26, { size: 14, mono: true, c: C.dim });
       const x0 = bx + 130, BW = 330, g = ease(seg(lt, 9.5, 11));
       const rows = [['D + T', 5.0302, C.p], ['⁴He + n', 5.0113, C.he]];
       rows.forEach(([lab, m, c], i) => {
@@ -460,9 +476,9 @@ CH.push({
         ctx.setLineDash([5, 4]); ctx.strokeStyle = rgba(C.energy, ga); ctx.lineWidth = 2;
         ctx.strokeRect(x1, y - 16, x2 - x1, 32); ctx.setLineDash([]);
         glow((x1 + x2) / 2, y, 110, C.energy, .35 * ga);
-        text('0.0189 u missing  →  17.6 MeV', bx + 20, by + 238, { size: 20, weight: 600, c: C.energy, a: ga });
+        text(tr('0.0189 u missing  →  17.6 MeV', 'חסרות 0.0189 u, שהן 17.6 MeV'), bx + 20, by + 238, { size: 20, weight: 600, c: C.energy, a: ga });
       }
-      text('axis starts at 5.000 u', bx + bw - 20, by + bh - 18, { size: 13, c: C.dim, align: 'right' });
+      text(tr('axis starts at 5.000 u', 'הציר מתחיל ב-5.000 u'), bx + bw - 20, by + bh - 18, { size: 13, c: C.dim, align: 'right' });
       ctx.restore();
     }
     scaleBar(100, '≈ 3 fm');
@@ -544,15 +560,15 @@ CH.push({
     const P = tokamak(lt);
     const a1 = seg(lt, 1.5, 2.5), a2 = seg(lt, 4.5, 5.5), a3 = seg(lt, 8.5, 9.5), a4 = seg(lt, 10.5, 11.5);
     const c = P(1.27, 0, 175);
-    if (a1) { line(c[0] + 10, c[1] + 10, 1150, 770, C.dim, 1.5, a1); text('Toroidal field coils', 1160, 770, { size: 24, weight: 600, a: a1, c: C.coil }); }
-    if (a2) { line(1220, 270, 1250, 215, C.dim, 1.5, a2); text('Poloidal field coils', 1258, 205, { size: 24, weight: 600, a: a2, c: C.coil }); }
+    if (a1) { line(c[0] + 10, c[1] + 10, 1150, 770, C.dim, 1.5, a1); text(tr('Toroidal field coils', 'סלילי שדה טורואידליים'), 1160, 770, { size: 24, weight: 600, a: a1, c: C.coil }); }
+    if (a2) { line(1220, 270, 1250, 215, C.dim, 1.5, a2); text(tr('Poloidal field coils', 'סלילי שדה פולואידליים'), 1580, 195, { size: 24, weight: 600, a: a2, c: C.coil, align: 'right' }); }
     const f = P(3.5, Math.PI / 2 + 2.5 * 3.5, 105);
-    if (a3) { line(f[0], f[1], 190, 200, C.dim, 1.5, a3); text('Twisted magnetic field', 60, 180, { size: 24, weight: 600, a: a3, c: C.fieldO }); }
+    if (a3) { line(f[0], f[1], 190, 200, C.dim, 1.5, a3); text(tr('Twisted magnetic field', 'שדה מגנטי מפותל'), 60, 180, { size: 24, weight: 600, a: a3, c: C.fieldO }); }
     if (a4) {
       const q = P(2.4, -Math.PI / 2, 60);
       line(q[0], q[1], 250, 690, C.dim, 1.5, a4);
-      text('Plasma ≈ 150 M °C', 60, 715, { size: 24, weight: 600, a: a4, c: C.plasma });
-      text('never touches the wall', 60, 715 + 30 * FS, { size: 18, a: a4, c: C.dim });
+      text(tr('Plasma ≈ 150 M °C', 'פלזמה, כ-150 מיליון מעלות'), 60, 715, { size: 24, weight: 600, a: a4, c: C.plasma });
+      text(tr('never touches the wall', 'לא נוגעת בדופן'), 60, 715 + 30 * FS, { size: 18, a: a4, c: C.dim });
     }
     // fusion flashes and escaping neutrons
     TOK_EVENTS.forEach((e, j) => {
@@ -565,9 +581,9 @@ CH.push({
       line(nx - Math.cos(e.dir) * tl, ny - Math.sin(e.dir) * tl, nx, ny, C.n, 4, .7);
       glow(nx, ny, 18, C.n, .5);
       ball(nx, ny, 8, C.n);
-      if (j === 0) text('fusion', p[0], p[1] - 40, { size: 22, weight: 600, align: 'center', c: C.energy, a: 1 - seg(age, 1, 1.5) });
+      if (j === 0) text(tr('fusion', 'היתוך'), p[0], p[1] - 40, { size: 22, weight: 600, align: 'center', c: C.energy, a: 1 - seg(age, 1, 1.5) });
     });
-    text('Neutrons escape: no charge, so the magnets cannot hold them', 800, 64, { size: 24, weight: 600, align: 'center', c: C.ink, a: seg(lt, 13, 13.8) * (1 - seg(lt, 21, 21.6)) });
+    text(tr('Neutrons escape: no charge, so the magnets cannot hold them', 'הנייטרונים בורחים: אין להם מטען, והמגנטים לא יכולים להחזיק אותם'), 800, 64, { size: 24, weight: 600, align: 'center', c: C.ink, a: seg(lt, 13, 13.8) * (1 - seg(lt, 21, 21.6)) });
     scaleBar(200, '≈ 3 m');
   }
 });
@@ -708,33 +724,33 @@ CH.push({
     // labels
     const lx = 1205;
     const stages = [
-      [0, 2, 'Fuel pellet', 'about 2 mm across, drawn enlarged', C.ink],
-      [2, 4.5, 'Laser beams', 'focused by lenses onto the pellet', C.laser],
-      [4.5, 7.5, 'Implosion', 'shell blows off, fuel driven inward', C.blanket],
-      [7.5, 8.4, 'Hot spot ignites', 'at the centre of the crushed fuel', C.energy],
-      [8.4, 11, 'Burn spreads', 'neutrons fly out', C.he]
+      [0, 2, tr('Fuel pellet', 'כדורית דלק'), tr('about 2 mm across, drawn enlarged', 'קוטר כ-2 מ״מ, מוצגת מוגדלת'), C.ink],
+      [2, 4.5, tr('Laser beams', 'קרני לייזר'), tr('focused by lenses onto the pellet', 'עדשות ממקדות אותן על הכדורית'), C.laser],
+      [4.5, 7.5, tr('Implosion', 'קריסה פנימה'), tr('shell blows off, fuel driven inward', 'הקליפה מתפרקת, הדלק נדחס פנימה'), C.blanket],
+      [7.5, 8.4, tr('Hot spot ignites', 'הנקודה החמה נדלקת'), tr('at the centre of the crushed fuel', 'במרכז הדלק הדחוס'), C.energy],
+      [8.4, 11, tr('Burn spreads', 'הבעירה מתפשטת'), tr('neutrons fly out', 'נייטרונים עפים החוצה'), C.he]
     ];
     stages.forEach(([a, b2, t1, t2, c]) => sideLabel(t1, t2, lx, 420, seg(lt, a, a + .4) * (1 - seg(lt, b2 - .3, b2)), c));
     const la = BEAMS[0], lp = [cx + Math.cos(la) * R, cy + Math.sin(la) * R];
     const lensA = seg(lt, 2.4, 3) * (1 - seg(lt, 5, 5.5));
-    if (lensA) { line(lp[0] + 18, lp[1] + 18, 1190, 640, C.dim, 1.5, lensA); text('Focusing lens', 1200, 650, { size: 22, weight: 600, a: lensA }); }
+    if (lensA) { line(lp[0] + 18, lp[1] + 18, 1190, 640, C.dim, 1.5, lensA); text(tr('Focusing lens', 'עדשה ממקדת'), 1200, 650, { size: 22, weight: 600, a: lensA }); }
     if (lt >= 11) {
       let k = 0; REPEATS.forEach((s, i) => { if (lt >= s.start) k = i; });
       const sa = seg(lt, REPEATS[k].start, REPEATS[k].start + .25);
-      sideLabel(`Shot ${REPEATS[k].n}`, '', lx, 400, sa, C.he);
-      text('A plant would fire about', lx, 460, { size: 18, c: C.dim, a: seg(lt, 11, 11.5) });
-      text('10 times a second.', lx, 460 + 26 * FS, { size: 18, c: C.dim, a: seg(lt, 11, 11.5) });
-      text('(slowed down here)', lx, 460 + 52 * FS, { size: 18, c: C.dim, a: seg(lt, 11, 11.5) });
+      sideLabel(tr(`Shot ${REPEATS[k].n}`, `ירייה ${REPEATS[k].n}`), '', lx, 400, sa, C.he);
+      text(tr('A plant would fire about', 'תחנת כוח תירה בערך'), lx, 460, { size: 18, c: C.dim, a: seg(lt, 11, 11.5) });
+      text(tr('10 times a second.', '10 פעמים בשנייה.'), lx, 460 + 26 * FS, { size: 18, c: C.dim, a: seg(lt, 11, 11.5) });
+      text(tr('(slowed down here)', '(כאן בהילוך איטי)'), lx, 460 + 52 * FS, { size: 18, c: C.dim, a: seg(lt, 11, 11.5) });
       const ia = seg(lt, 11, 11.5) * (1 - seg(lt, 14.5, 15));
-      if (ia) { line(cx + 20, cy - R - 40, 930, 70, C.dim, 1.5, ia); text('Fuel injector', 940, 62, { size: 22, weight: 600, a: ia }); }
+      if (ia) { line(cx + 20, cy - R - 40, 930, 70, C.dim, 1.5, ia); text(tr('Fuel injector', 'מזרק דלק'), 940, 62, { size: 22, weight: 600, a: ia }); }
     }
-    text('Spherical target chamber, about 10 m across (pellet not to scale)', 800, 868, { size: 17, c: C.dim, align: 'center' });
+    text(tr('Spherical target chamber, about 10 m across (pellet not to scale)', 'תא מטרה כדורי בקוטר של כ-10 מ׳ (הכדורית לא בקנה מידה)'), 800, 868, { size: 17, c: C.dim, align: 'center' });
   }
 });
 
 // 5. Energy capture (same for both)
 CH.push({
-  title: 'Capturing the energy', short: 'Blanket', dur: 25, key: 21.5,
+  title: 'Capturing the energy', short: tr('Blanket', 'שמיכה'), dur: 25, key: 21.5,
   fact: 'Neutrons carry 80% of the energy (14.1 of 17.6 MeV). In the blanket: n + ⁶Li → T + ⁴He + 4.8 MeV.',
   beats: [
     [0, 'Whichever method holds the fuel, the reaction releases the same thing: fast neutrons.'],
@@ -773,8 +789,8 @@ CH.push({
       }
       ctx.restore();
       glow(L[0] + 269, L[1], 60, C.blanket, .5 * heat); glow(L[0] - 269, L[1], 60, C.blanket, .5 * heat);
-      text('Magnetic', L[0], 150, { size: 28, weight: 600, align: 'center' });
-      text('Blanket', L[0], 590, { size: 20, align: 'center', c: C.blanket });
+      text(tr('Magnetic', 'מגנטית'), L[0], 150, { size: 28, weight: 600, align: 'center' });
+      text(tr('Blanket', 'שמיכה'), L[0], 590, { size: 20, align: 'center', c: C.blanket });
       // right: laser chamber
       const Rc = [1170 - u * 650, 380];
       const pulse = (lt % 1.2) / 1.2;
@@ -788,9 +804,9 @@ CH.push({
         const a = rnd(i + 50) * TAU;
         ball(Rc[0] + Math.cos(a) * (10 + sN * 162), Rc[1] + Math.sin(a) * (10 + sN * 162), 5, C.n);
       }
-      text('Laser', Rc[0], 140, { size: 28, weight: 600, align: 'center' });
-      text('Blanket', Rc[0], 618, { size: 20, align: 'center', c: C.blanket });
-      text('Same neutrons, same blanket', 800, 740, { size: 32, weight: 600, align: 'center', c: C.energy, a: seg(lt, 5, 6) });
+      text(tr('Laser', 'לייזר'), Rc[0], 140, { size: 28, weight: 600, align: 'center' });
+      text(tr('Blanket', 'שמיכה'), Rc[0], 618, { size: 20, align: 'center', c: C.blanket });
+      text(tr('Same neutrons, same blanket', 'אותם נייטרונים, אותה שמיכה'), 800, 740, { size: 32, weight: 600, align: 'center', c: C.energy, a: seg(lt, 5, 6) });
       ctx.restore();
     }
     if (u > 0) {
@@ -804,15 +820,15 @@ CH.push({
         const a = rnd(i + 90) * TAU, s = (lt * .8 + rnd(i + 3)) % 1;
         ball(cx + Math.cos(a) * (25 + s * 100), cy + Math.sin(a) * (25 + s * 100), 5, C.n);
       }
-      text('Fusion fuel (magnets or lasers)', cx + 60, cy + 222, { size: 20, weight: 600, align: 'center' });
-      text('Blanket: lithium, steel and coolant', cx, 175, { size: 22, weight: 600, align: 'center', c: C.blanket });
+      text(tr('Fusion fuel (magnets or lasers)', 'דלק היתוך (מגנטים או לייזרים)'), cx + 60, cy + 222, { size: 20, weight: 600, align: 'center' });
+      text(tr('Blanket: lithium, steel and coolant', 'שמיכה: ליתיום, פלדה ונוזל קירור'), cx, 175, { size: 22, weight: 600, align: 'center', c: C.blanket });
       // coolant pipes
       const hotP = [[690, 340], [1530, 340]], coldP = [[1530, 425], [690, 425]];
       pline(hotP, mix(C.hot, [60, 30, 30], .4), 18, 1); pline(coldP, mix(C.cold, [20, 30, 60], .4), 18, 1);
       flowDots(hotP, lt * 160, 46, C.hot, 5, 1);
       flowDots(coldP, lt * 160, 46, C.cold, 5, 1);
-      text('Hot coolant to the steam generator →', 1530, 302, { size: 21, align: 'right', c: C.hot });
-      text('← Cooled coolant returns', 1530, 465, { size: 21, align: 'right', c: C.cold });
+      text(tr('Hot coolant to the steam generator →', '→ נוזל קירור חם אל מחולל הקיטור'), 1530, 302, { size: 21, align: 'right', c: C.hot });
+      text(tr('← Cooled coolant returns', 'נוזל הקירור המקורר חוזר ←'), 1530, 465, { size: 21, align: 'right', c: C.cold });
       ctx.restore();
     }
     // breeding inset
@@ -824,7 +840,7 @@ CH.push({
       const lx = 1000, ly = 700, hit = seg(lt, 14.6, 16);
       if (lt < 16) {
         nucleus(lx, ly, ['p', 'n', 'p', 'n', 'p', 'n'], 18);
-        text('lithium-6', lx, ly + 62, { size: 18, align: 'center', c: C.dim });
+        text(tr('lithium-6', 'ליתיום-6'), lx, ly + 62, { size: 18, align: 'center', c: C.dim });
         ball(lerp(790, lx - 44, hit), ly, 18, C.n);
       } else {
         const s = easeOut(seg(lt, 16, 17.6)), fl = seg(lt, 16, 16.9);
@@ -833,8 +849,8 @@ CH.push({
         nucleus(tx, ty, ['p', 'n', 'n'], 18);
         nucleus(hx, hy, ['p', 'n', 'n', 'p'], 18);
         const la = seg(lt, 17, 17.8);
-        text('Tritium: new fuel', tx + 50, ty, { size: 20, weight: 600, c: C.tri, a: la });
-        text('Helium', hx + 50, hy, { size: 20, c: C.dim, a: la });
+        text(tr('Tritium: new fuel', 'טריטיום: דלק חדש'), tx + 50, ty, { size: 20, weight: 600, c: C.tri, a: la });
+        text(tr('Helium', 'הליום'), hx + 50, hy, { size: 20, c: C.dim, a: la });
       }
       ctx.restore();
     }
@@ -846,8 +862,8 @@ CH.push({
       pline(outP, mix(C.tri, C.bg, .55), 12); pline(backP, mix(C.tri, C.bg, .55), 12);
       ctx.fillStyle = rgba([24, 32, 48]); ctx.strokeStyle = rgba(C.tri, .9); ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.roundRect(110, 640, 240, 100, 12); ctx.fill(); ctx.stroke();
-      text('Tritium extraction', 230, 678, { size: 21, weight: 600, align: 'center', c: C.tri });
-      text('separates T from the blanket', 230, 708, { size: 15, align: 'center', c: C.dim });
+      text(tr('Tritium extraction', 'הפקת טריטיום'), 230, 678, { size: 21, weight: 600, align: 'center', c: C.tri });
+      text(tr('separates T from the blanket', 'מפרידה טריטיום מהשמיכה'), 230, 708, { size: 15, align: 'center', c: C.dim });
       const along = (pts, d) => {
         for (let i = 1; i < pts.length; i++) {
           const l = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
@@ -863,7 +879,7 @@ CH.push({
           if (run * 110 >= k * 120) nucleus(q[0], q[1], ['p', 'n', 'n'], 7);
         }
       });
-      text('new fuel →', 300, 352, { size: 18, weight: 600, c: C.tri, align: 'center' });
+      text(tr('new fuel →', '→ דלק חדש'), 300, 352, { size: 18, weight: 600, c: C.tri, align: 'center' });
       ctx.restore();
     }
   }
@@ -997,18 +1013,66 @@ CH.push({
 
     // labels
     const L = (s, x2, y2, t0, align = 'center', c = C.ink) => text(s, x2, y2, { size: 22, weight: 600, align, a: seg(lt, t0, t0 + .7), c });
-    L('Fusion core + blanket', 250, 180, .3);
-    L('Steam generator', 590, 800 + 20, 2.5);
-    L('Turbine', 880, 245, 6.5);
-    L('Generator', 1125, 255, 9);
-    L('Condenser', 880, 722, 10.5);
-    text('cooling water loop', 880, 752, { size: 17, align: 'center', c: C.cold, a: seg(lt, 11, 11.7) });
-    text('water line', 650, 596, { size: 15, c: C.cold, a: seg(lt, 2.5, 3.2) });
-    L('Cooling tower', 1110, 820, 11);
-    L('Grid', 1460, 820, 12, 'center', C.he);
+    L(tr('Fusion core + blanket', 'ליבת היתוך + שמיכה'), 250, 180, .3);
+    L(tr('Steam generator', 'מחולל קיטור'), 590, 800 + 20, 2.5);
+    L(tr('Turbine', 'טורבינה'), 880, 245, 6.5);
+    L(tr('Generator', 'גנרטור'), 1125, 255, 9);
+    L(tr('Condenser', 'מעבה'), 880, 722, 10.5);
+    text(tr('cooling water loop', 'מעגל מי קירור'), 880, 752, { size: 17, align: 'center', c: C.cold, a: seg(lt, 11, 11.7) });
+    text(tr('water line', 'מפלס המים'), 650, 596, { size: 15, c: C.cold, a: seg(lt, 2.5, 3.2) });
+    L(tr('Cooling tower', 'מגדל קירור'), 1110, 820, 11);
+    L(tr('Grid', 'רשת החשמל'), 1460, 820, 12, 'center', C.he);
     scaleBar(150, '≈ 50 m');
   }
 });
+
+
+const HE_CH = [
+  { title: 'מחסום קולון',
+    fact: 'הדחייה החשמלית גדלה ביחס הפוך לריבוע המרחק (1/r²). הכוח החזק, שמחזיק את הגרעינים יחד, פועל רק בטווח של כפמטומטר אחד (10⁻¹⁵ מ׳).',
+    beats: ['שני איזוטופים של מימן: דאוטריום (פרוטון אחד ונייטרון אחד) וטריטיום (פרוטון אחד ושני נייטרונים).',
+      'לשני הגרעינים מטען חיובי. ככל שהם מתקרבים, הם דוחים זה את זה בחוזקה רבה יותר.',
+      'באנרגיות רגילות הם ניתזים זה מזה לפני שהכוח הגרעיני החזק מספיק לחבר אותם. חומת הדחייה הזאת נקראת מחסום קולון.'] },
+  { title: 'היתוך',
+    fact: 'D + T → ⁴He (3.5 MeV) + n (14.1 MeV). בסך הכול 17.6 MeV לכל תגובה.',
+    beats: ['ב-50 מיליון מעלות הגרעינים איטיים מדי. הם נעצרים רחוק זה מזה, נדחים ומתרחקים.',
+      'דלק חם יותר פירושו גרעינים מהירים יותר. ב-100 מיליון מעלות הם מתקרבים יותר, אבל עדיין ניתזים זה מזה.',
+      'בכ-150 מיליון מעלות, פי עשרה מהחום בליבת השמש, הם מתקרבים מספיק כדי שמנהור קוונטי יעביר אותם דרך המחסום, והם מתמזגים.',
+      'הם הופכים לגרעין הליום-4 ולנייטרון חופשי, שעפים זה מזה במהירות גבוהה.',
+      'התוצרים שוקלים מעט פחות מהדלק. 0.019 יחידות המסה האטומית החסרות הופכות ל-17.6 MeV של אנרגיה (E = mc²).'] },
+  { title: 'כליאה מגנטית',
+    fact: 'דוגמה: ITER, שנבנה בצרפת. נפח הפלזמה: 840 מ״ק.',
+    beats: ['שום דופן חומרית לא יכולה לגעת בדלק חם כל כך. טוקאמק מחזיק את הדלק בתא ואקום בצורת טבעת, בעזרת שדות מגנטיים במקום דפנות.',
+      'סלילי השדה הטורואידליים עוטפים את הטבעת. סלילים פולואידליים מעליה ומתחתיה מעצבים ומכוונים את הדלק.',
+      'יחד, השדות מתפתלים לקווים סליליים. החלקיקים הטעונים של הדלק החם, שהפך לפלזמה, נעים לאורכם בספירלה ומתרחקים מהדופן.',
+      'כל הבזק הוא תגובת היתוך אחת. לנייטרון שנוצר אין מטען חשמלי, ולכן השדה המגנטי לא משפיע עליו, והוא עף ישר אל מחוץ לפלזמה.',
+      'כך הדלק ממשיך להתמזג במשך שניות או דקות. גרעיני ההליום, בעלי 3.5 MeV, נשארים כלואים ועוזרים לשמור על הפלזמה חמה.'] },
+  { title: 'כליאה אינרציאלית בלייזר',
+    fact: 'הנעה ישירה: הלייזרים פוגעים בכדורית עצמה. כל הקריסה פנימה נמשכת כמה מיליארדיות שנייה.',
+    beats: ['הגישה השנייה לא משתמשת במגנטים. כדורית דלק בקוטר של כ-2 מ״מ, קליפה של דאוטריום-טריטיום קפוא, נמצאת במרכז תא מטרה כדורי.',
+      'קרני לייזר מגיעות מחוץ לתא. עדשות בדופן התא ממקדות כל קרן אל הכדורית, מכל הכיוונים בבת אחת.',
+      'השכבה החיצונית מתאדה ונזרקת החוצה. כמו פליטה של רקטה, היא דוחפת את שאר הדלק פנימה ודוחסת אותו לחלק קטן מגודלו.',
+      'במרכז נדלקת נקודה חמה, ובעירת ההיתוך מתפשטת החוצה דרך הדלק הדחוס. האינרציה שלו מחזיקה אותו יחד לשבריר הננו-שנייה הדרוש.',
+      'אחר כך המזרק מפיל את הכדורית הבאה למרכז, הלייזרים יורים, והיא מתמזגת. שוב ושוב: תחנת כוח תחזור על כך כעשר פעמים בשנייה.'] },
+  { title: 'לכידת האנרגיה',
+    fact: 'הנייטרונים נושאים 80% מהאנרגיה (14.1 מתוך 17.6 MeV). בשמיכה: n + ⁶Li → T + ⁴He + 4.8 MeV.',
+    beats: ['לא משנה באיזו שיטה מחזיקים את הדלק, התגובה משחררת אותו דבר: נייטרונים מהירים.',
+      'לנייטרונים אין מטען, ולכן מגנטים לא יכולים להחזיק אותם. הם עפים ישר החוצה ונעצרים בשמיכה עבה שמקיפה את הכור.',
+      'לכן האנרגיה נאספת באותה דרך בשני סוגי הכורים. השמיכה מתחממת, ונוזל קירור מוביל את החום אל התחנה.',
+      'השמיכה מכילה גם ליתיום. כשנייטרון פוגע בליתיום-6, הליתיום מתפצל להליום ולטריטיום חדש.',
+      'מתקן להפקת טריטיום שולף את הטריטיום החדש מהשמיכה ומחזיר אותו לכור כדלק.'] },
+  { title: 'תחנת הכוח',
+    fact: 'התגובה לא פולטת CO₂. חלקי הכור הופכים לרדיואקטיביים עם הזמן, אבל לא נוצרת פסולת רדיואקטיבית ברמה גבוהה וארוכת חיים.',
+    beats: ['מכאן והלאה, תחנת כוח היתוך פועלת כמו כל תחנת כוח תרמית אחרת.',
+      'נוזל קירור חם מהשמיכה זורם אל מחולל קיטור ומרתיח מים.',
+      'הקיטור מסובב טורבינה, והטורבינה מניעה גנרטור.',
+      'מעבה ומגדל קירור הופכים את הקיטור בחזרה למים לסבב הבא.',
+      'החשמל יוצא אל רשת החשמל. התחנה משתלמת רק אם היא מייצרת יותר חשמל ממה שהיא צורכת להפעלת המגנטים או הלייזרים שלה.'] }
+];
+CH.forEach((c, i) => { if (HE_CH[i].beats.length !== c.beats.length) console.error('beat count mismatch in chapter', i + 1); });
+const cTitle = i => LANG === 'he' ? HE_CH[i].title : CH[i].title;
+const cFact = i => LANG === 'he' ? HE_CH[i].fact : CH[i].fact;
+const cBeat = (i, j) => LANG === 'he' ? HE_CH[i].beats[j] : CH[i].beats[j][1];
 
 // timeline bookkeeping
 let acc = 0;
@@ -1050,15 +1114,48 @@ const chapBtns = CH.map((c, i) => {
   const li = document.createElement('li');
   const b = document.createElement('button');
   b.className = 'chap'; b.type = 'button'; b.id = 'chap-' + (i + 1);
-  b.innerHTML = `<span class="n">${String(i + 1).padStart(2, '0')}</span><span class="t">${c.title}</span><span class="bar"></span>`;
+  b.innerHTML = `<span class="n">${String(i + 1).padStart(2, '0')}</span><span class="t"></span><span class="bar"></span>`;
   b.addEventListener('click', () => jump(i));
   li.appendChild(b); chapList.appendChild(li);
   return b;
 });
-// narration script
-$('script').innerHTML = CH.map((c, i) => `<section><h3>${i + 1}. ${c.title}</h3><ol>${
-  c.beats.map(([at, s]) => `<li><span class="ts">${fmt(c.start + at)}</span><span>${s}</span></li>`).join('')
-}</ol></section>`).join('');
+const STR = {
+  en: {
+    kicker: 'Deuterium + tritium → helium + neutron → electricity', h1: 'Nucleus to Grid',
+    dek: 'How nuclear fusion works, step by step: two nuclei overcome their repulsion, two ways of confining the fuel, and the steam plant that turns the released energy into electricity.',
+    summary: 'Narration script (for voice-over)',
+    note: "Narration uses your browser's built-in voice, so it sounds different on each device. While it reads, the animation waits at the end of each caption until the sentence is finished. Space plays and pauses. The left and right arrow keys jump between chapters. Diagrams are not to scale, except where a scale bar is shown.",
+    lang: 'עברית', play: 'Play', pause: 'Pause', replay: 'Restart from the beginning', scrub: 'Animation position',
+    narrOn: 'Narration on', narrOff: 'Narration off', narrTitle: 'Read the captions aloud', noVoice: 'No English voice on this device',
+    chapter: (i, n, ti) => `Chapter ${i} of ${n} · ${ti}`
+  },
+  he: {
+    kicker: 'דאוטריום + טריטיום ← הליום + נייטרון ← חשמל', h1: 'מהגרעין לרשת',
+    dek: 'איך היתוך גרעיני עובד, צעד אחר צעד: שני גרעינים מתגברים על הדחייה ביניהם, שתי דרכים לכלוא את הדלק, ותחנת הקיטור שהופכת את האנרגיה המשתחררת לחשמל.',
+    summary: 'תסריט הקריינות (להקלטת קול)',
+    note: 'הקריינות משתמשת בקול המובנה בדפדפן, ולכן היא נשמעת שונה בכל מכשיר. בזמן ההקראה, האנימציה ממתינה בסוף כל כיתוב עד שהמשפט מסתיים. מקש הרווח מפעיל ועוצר, ומקשי החיצים ימינה ושמאלה עוברים בין פרקים. התרשימים אינם בקנה מידה, למעט היכן שמוצג סרגל קנה מידה.',
+    lang: 'English', play: 'הפעלה', pause: 'השהיה', replay: 'התחלה מחדש', scrub: 'מיקום באנימציה',
+    narrOn: 'קריינות פועלת', narrOff: 'קריינות כבויה', narrTitle: 'הקראת הכיתובים בקול', noVoice: 'אין קול עברי במכשיר',
+    chapter: (i, n, ti) => `פרק ${i} מתוך ${n} · ${ti}`
+  }
+};
+const S = k => STR[LANG][k];
+const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+function applyLang() {
+  const w = $('wrap');
+  w.dir = LANG === 'he' ? 'rtl' : 'ltr'; w.lang = LANG;
+  document.documentElement.lang = LANG;
+  ['kicker', 'h1', 'dek', 'summary', 'note'].forEach(k => { $('t-' + k).textContent = S(k); });
+  const lb = $('lang'); lb.textContent = S('lang'); lb.lang = LANG === 'he' ? 'en' : 'he';
+  $('replay').setAttribute('aria-label', S('replay'));
+  scrub.setAttribute('aria-label', S('scrub'));
+  $('narr').title = S('narrTitle');
+  chapBtns.forEach((b, i) => { b.querySelector('.t').textContent = cTitle(i); });
+  $('script').innerHTML = CH.map((c, i) => `<section><h3>${i + 1}. ${esc(cTitle(i))}</h3><ol>${
+    c.beats.map(([at], j) => `<li><span class="ts">${fmt(c.start + at)}</span><span>${esc(cBeat(i, j))}</span></li>`).join('')
+  }</ol></section>`).join('');
+  lastKey = '';
+}
 
 let lastKey = '';
 function updateUI(i, lt) {
@@ -1075,27 +1172,39 @@ function updateUI(i, lt) {
   const key = i + ':' + bi;
   if (key !== lastKey) {
     lastKey = key;
-    $('cap-eyebrow').textContent = `Chapter ${i + 1} of ${CH.length} · ${c.title}`;
-    $('cap-text').textContent = c.beats[bi][1];
-    $('cap-fact').textContent = c.fact;
-    cv.setAttribute('aria-label', `${c.title}: ${c.beats[bi][1]}`);
+    $('cap-eyebrow').textContent = S('chapter')(i + 1, CH.length, cTitle(i));
+    $('cap-text').textContent = cBeat(i, bi);
+    $('cap-fact').textContent = cFact(i);
+    cv.setAttribute('aria-label', `${cTitle(i)}: ${cBeat(i, bi)}`);
   }
 }
 
 // ---------- narration (browser speech synthesis) ----------
 const BEATS = [];
-CH.forEach(c => c.beats.forEach(([at, txt]) => BEATS.push({ t: c.start + at, txt })));
+CH.forEach((c, i) => c.beats.forEach(([at], j) => BEATS.push({ t: c.start + at, i, j })));
 const beatAt = time => { let k = 0; BEATS.forEach((b, j) => { if (time >= b.t - 1e-6) k = j; }); return k; };
-const spoken = s => s
+const spoken = s => LANG === 'he' ? s
+  .replace(/(\d+(?:\.\d+)?) MeV/g, '$1 מגה אלקטרון וולט')
+  .replace(/°C/g, ' מעלות צלזיוס')
+  .replace(/E = mc²/g, 'E שווה m c בריבוע')
+  .replace(/מ״מ/g, 'מילימטר') : s
   .replace(/(\d+(?:\.\d+)?) MeV/g, '$1 mega electron volts')
   .replace(/°C/g, ' degrees Celsius')
   .replace(/E = mc²/g, 'E equals m c squared');
 const synth = window.speechSynthesis;
-let narrOn = false, pendingUtt = 0, spokenIdx = -1, gen = 0, voice = null, stuck = 0;
+let narrOn = false, pendingUtt = 0, spokenIdx = -1, gen = 0, voice = null, stuck = 0, noVoice = false;
 function pickVoice() {
   if (!synth) return;
-  const vs = synth.getVoices().filter(v => /^en(-|_|$)/i.test(v.lang));
-  voice = vs.find(v => /natural|neural|online/i.test(v.name)) || vs.find(v => /google us english|samantha|daniel|aria|jenny/i.test(v.name)) || vs.find(v => v.lang === 'en-US') || vs[0] || null;
+  const all = synth.getVoices();
+  if (LANG === 'he') {
+    const vs = all.filter(v => /^(he|iw)(-|_|$)/i.test(v.lang));
+    voice = vs.find(v => /natural|neural|online|google/i.test(v.name)) || vs[0] || null;
+    noVoice = all.length > 0 && !voice;
+  } else {
+    const vs = all.filter(v => /^en(-|_|$)/i.test(v.lang));
+    voice = vs.find(v => /natural|neural|online/i.test(v.name)) || vs.find(v => /google us english|samantha|daniel|aria|jenny/i.test(v.name)) || vs.find(v => v.lang === 'en-US') || vs[0] || null;
+    noVoice = all.length > 0 && !voice;
+  }
 }
 function stopSpeech() {
   gen++; pendingUtt = 0; spokenIdx = -1;
@@ -1104,12 +1213,12 @@ function stopSpeech() {
 function speakBeat(k) {
   if (!synth) return;
   try { synth.cancel(); } catch (e) {}
-  const g = ++gen, parts = spoken(BEATS[k].txt).match(/[^.!?]+[.!?]*/g) || [];
+  const g = ++gen, parts = spoken(cBeat(BEATS[k].i, BEATS[k].j)).match(/[^.!?]+[.!?]*/g) || [];
   spokenIdx = k; pendingUtt = parts.length; stuck = 0;
   parts.forEach(part => {
     const u = new SpeechSynthesisUtterance(part.trim());
     if (voice) u.voice = voice;
-    u.lang = voice ? voice.lang : 'en-US'; u.rate = 1;
+    u.lang = voice ? voice.lang : (LANG === 'he' ? 'he-IL' : 'en-US'); u.rate = 1;
     const done = () => { if (g === gen) pendingUtt = Math.max(0, pendingUtt - 1); };
     u.onend = done; u.onerror = done;
     try { synth.speak(u); } catch (e) { done(); }
@@ -1120,15 +1229,28 @@ function narrate() {
   const k = beatAt(t);
   if (k !== spokenIdx) speakBeat(k);
 }
+function narrLabel(msg) {
+  $('narr-lbl').textContent = msg || (narrOn ? S('narrOn') : S('narrOff'));
+}
 function setNarration(on) {
-  narrOn = on && !!synth;
-  const b = $('narr');
-  b.setAttribute('aria-pressed', String(narrOn));
-  $('narr-lbl').textContent = narrOn ? 'Narration on' : 'Narration off';
+  pickVoice();
+  if (on && noVoice) { narrOn = false; narrLabel(S('noVoice')); }
+  else { narrOn = on && !!synth; narrLabel(); }
+  $('narr').setAttribute('aria-pressed', String(narrOn));
   $('ico-snd').hidden = !narrOn; $('ico-mute').hidden = narrOn;
   if (!narrOn) stopSpeech();
-  else { pickVoice(); spokenIdx = -1; if (!playing) setPlaying(true); else narrate(); }
+  else { spokenIdx = -1; if (!playing) setPlaying(true); else narrate(); }
 }
+function setLang(l) {
+  LANG = l;
+  try { localStorage.setItem('fusion-lang', l); } catch (e) {}
+  stopSpeech();
+  applyLang();
+  playBtn.setAttribute('aria-label', playing ? S('pause') : S('play'));
+  if (narrOn) setNarration(true); else narrLabel();
+  render();
+}
+$('lang').addEventListener('click', () => setLang(LANG === 'he' ? 'en' : 'he'));
 if (synth) { pickVoice(); synth.addEventListener?.('voiceschanged', pickVoice); }
 else $('narr').hidden = true;
 $('narr').addEventListener('click', () => setNarration(!narrOn));
@@ -1138,7 +1260,7 @@ let t = reduce ? CH[0].key : 0, playing = false, lastTs = 0;
 function setPlaying(p) {
   playing = p;
   $('ico-play').hidden = p; $('ico-pause').hidden = !p;
-  playBtn.setAttribute('aria-label', p ? 'Pause' : 'Play');
+  playBtn.setAttribute('aria-label', p ? S('pause') : S('play'));
   if (synth && narrOn) {
     try { if (!p && pendingUtt) synth.pause(); else if (p && pendingUtt) synth.resume(); } catch (e) {}
   }
@@ -1179,7 +1301,8 @@ document.addEventListener('keydown', e => {
 });
 
 new ResizeObserver(resize).observe(cv);
-if (document.fonts) document.fonts.ready.then(render);
+applyLang(); narrLabel();
+if (document.fonts) { document.fonts.ready.then(render); document.fonts.load('500 20px "IBM Plex Sans Hebrew"', 'א').then(render).catch(() => {}); }
 resize();
 if (!reduce) setPlaying(true);
 window.__fusion = { seek: s => { t = s; render(); }, chapters: CH, total: TOTAL, pause: () => setPlaying(false) };
